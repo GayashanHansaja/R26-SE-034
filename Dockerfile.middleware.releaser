@@ -1,0 +1,5 @@
+FROM alpine:latest
+WORKDIR /app
+COPY middleware .
+EXPOSE 8080
+ENTRYPOINT ["./middleware"]

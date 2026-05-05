@@ -1,0 +1,154 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: erpbridge
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: middleware
+    main: ./services/middleware/main.go
+    binary: middleware
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  - id: bridgectl
+    main: ./tools/bridgectl/main.go
+    binary: bridgectl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: middleware
+    builds: [middleware]
+    formats: ['tar.gz']
+    name_template: >-
+      middleware_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - README.md
+    format_overrides:
+      - goos: windows
+        formats: ['zip']
+
+  - id: bridgectl
+    builds: [bridgectl]
+    formats: ['tar.gz']
+    name_template: >-
+      bridgectl_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - README.md
+    format_overrides:
+      - goos: windows
+        formats: ['zip']
+
+  - id: combined
+    builds: [middleware, bridgectl]
+    formats: ['tar.gz']
+    name_template: >-
+      erpbridge-full_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - README.md
+    format_overrides:
+      - goos: windows
+        formats: ['zip']
+
+dockers:
+  - use: buildx
+    ids:
+      - middleware
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}-amd64"
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest-amd64"
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title=middleware"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+    dockerfile: Dockerfile.middleware.releaser
+
+  - use: buildx
+    ids:
+      - middleware
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}-arm64"
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest-arm64"
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/arm64/v8"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title=middleware"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+    dockerfile: Dockerfile.middleware.releaser
+
+docker_manifests:
+  - name_template: "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}-amd64"
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest"
+    image_templates:
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest-amd64"
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest-arm64"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: nimendra
+    name: ERPBridge
+  footer: |
+    ---
+    Released by [GoReleaser](https://goreleaser.com).
+
+snapshot:
+  version_template: "{{ .Tag }}-next"
