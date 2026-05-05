@@ -1,13 +1,13 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nimendra/ERPBridge/internal/idp"
@@ -23,9 +23,10 @@ var toolCmd = &cobra.Command{
 
 var toolGenerateCmd = &cobra.Command{
 	Use:   "generate",
-	Short: "Auto-generate an MCP tool schema from a registered API",
+	Short: "Auto-generate an MCP tool schema from a registered API or OpenAPI spec",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		apiName, _ := cmd.Flags().GetString("api")
+		openapiURL, _ := cmd.Flags().GetString("openapi")
 		
 		reg, err := idp.NewRegistry("")
 		if err != nil {
@@ -38,6 +39,16 @@ var toolGenerateCmd = &cobra.Command{
 		}
 
 		gen := idp.NewGenerator("")
+		
+		if openapiURL != "" {
+			tools, err := gen.GenerateFromOpenAPI(api, openapiURL)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stdout, "Generated %d tools from OpenAPI spec.\n", len(tools))
+			return nil
+		}
+
 		tool, err := gen.Generate(api)
 		if err != nil {
 			return err
@@ -149,7 +160,13 @@ var toolInvokeCmd = &cobra.Command{
 			Arguments: argMap,
 		})
 
-		resp, err := http.Post(mcpURL, "application/json", bytes.NewBuffer(reqBody))
+		// Use manual HTTP client for direct invoke
+		var netClient = &http.Client{
+			Timeout: time.Second * 10,
+		}
+		
+		// In a real app, use the context override
+		resp, err := netClient.Post(mcpURL, "application/json", strings.NewReader(string(reqBody)))
 		if err != nil {
 			return fmt.Errorf("MCP server call failed: %w", err)
 		}
@@ -161,7 +178,9 @@ var toolInvokeCmd = &cobra.Command{
 		}
 
 		fmt.Fprintf(os.Stdout, "Invoking  %s\n", name)
-		fmt.Fprintf(os.Stdout, "Args      %s\n\n", args[1])
+		if len(args) > 1 {
+			fmt.Fprintf(os.Stdout, "Args      %s\n\n", args[1])
+		}
 
 		return formatter.Print(toolResult)
 	},
@@ -174,5 +193,6 @@ func init() {
 	toolCmd.AddCommand(toolInvokeCmd)
 
 	toolGenerateCmd.Flags().String("api", "", "Name of the registered API to generate from")
+	toolGenerateCmd.Flags().String("openapi", "", "URL or path to an OpenAPI spec")
 	toolGenerateCmd.MarkFlagRequired("api")
 }
