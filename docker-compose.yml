@@ -17,7 +17,7 @@ services:
 
   embedder:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
-    command: --model-id sentence-transformers/all-MiniLM-L6-v2 --port 8083
+    command: --model-id nomic-ai/nomic-embed-text-v1 --port 8083
     ports:
       - "8083:8083"
     healthcheck:

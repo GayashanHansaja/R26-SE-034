@@ -18,10 +18,12 @@ func NewHFEmbedder(baseURL string) *HFEmbedder {
     return &HFEmbedder{baseURL: baseURL, client: &http.Client{}}
 }
 
-func (e *HFEmbedder) Dim() int { return 384 }
+func (e *HFEmbedder) Dim() int { return 768 }
 
 func (e *HFEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
-    body, _ := json.Marshal(map[string]string{"inputs": text})
+    // Prepend task instruction for nomic-embed-text-v1
+    prefixed := "search_query: " + text
+    body, _ := json.Marshal(map[string]string{"inputs": prefixed})
     req, err := http.NewRequestWithContext(ctx, http.MethodPost,
         e.baseURL+"/embed", bytes.NewReader(body))
     if err != nil {

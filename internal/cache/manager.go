@@ -51,7 +51,7 @@ func (m *Manager) EnsureIndex(ctx context.Context) error {
     }
 
     // Create index
-    // FT.CREATE idx:semantic ON HASH PREFIX 1 "sem:" SCHEMA tool TAG role TAG args_emb VECTOR HNSW 6 TYPE FLOAT32 DIM 384 DISTANCE_METRIC COSINE
+    // FT.CREATE idx:semantic ON HASH PREFIX 1 "sem:" SCHEMA tool TAG role TAG args_emb VECTOR HNSW 6 TYPE FLOAT32 DIM 768 DISTANCE_METRIC COSINE
     err = m.rdb.Do(ctx, "FT.CREATE", "idx:semantic",
         "ON", "HASH",
         "PREFIX", "1", "sem:",
