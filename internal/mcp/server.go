@@ -9,19 +9,22 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/nimendra/ERPBridge/internal/cache"
 )
 
 type Server struct {
 	mcpServer *server.MCPServer
 	connector ERPConnector
+	cache     *cache.Manager
 	tools     map[string]*Tool // Internal storage for our Tool metadata
 }
 
-func NewServer(connector ERPConnector) *Server {
+func NewServer(connector ERPConnector, cacheMgr *cache.Manager) *Server {
 	s := server.NewMCPServer("ERPBridge", "1.0.0")
 	return &Server{
 		mcpServer: s,
 		connector: connector,
+		cache:     cacheMgr,
 		tools:     make(map[string]*Tool),
 	}
 }
@@ -61,9 +64,34 @@ func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 			return nil, fmt.Errorf("invalid arguments format")
 		}
 
+		// Caching Layer — READ
+		var role string // TODO: extract from context if Phase 3 RBAC is present
+		if s.cache != nil && t.Cache != nil && t.Cache.Enabled {
+			entry, err := s.cache.Get(ctx, t.Name, role, args, *t.Cache)
+			if err == nil && entry != nil && entry.HitType != "miss" {
+				log.Printf("cache hit [%s] for %s", entry.HitType, t.Name)
+				return mcp.NewToolResultText(string(entry.Response)), nil
+			}
+		}
+
 		result, err := t.Execute(ctx, args, s.connector)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		// Caching Layer — WRITE (Store)
+		if s.cache != nil && t.Cache != nil && t.Cache.Enabled && !result.IsError {
+			respJSON, _ := json.Marshal(result.Result)
+			if err := s.cache.Set(ctx, t.Name, role, args, respJSON, *t.Cache); err != nil {
+				log.Printf("warn: failed to cache result for %s: %v", t.Name, err)
+			}
+		}
+
+		// Invalidation Layer — AUTO-FLUSH
+		if s.cache != nil && t.Cache != nil && len(t.Cache.FlushOn) > 0 && !result.IsError {
+			if err := s.cache.AutoFlush(ctx, t.Cache.FlushOn); err != nil {
+				log.Printf("warn: auto-flush failed for %s: %v", t.Name, err)
+			}
 		}
 
 		// Convert result to mcp-go format
@@ -81,6 +109,12 @@ func (s *Server) ServeHTTP(mux *http.ServeMux, baseURL string) {
 
 	// Direct invocation endpoint for bridgectl
 	mux.HandleFunc("/api/tools/invoke", s.handleDirectInvoke)
+
+	// Cache management endpoints
+	mux.HandleFunc("/api/cache/stats", s.handleCacheStats)
+	mux.HandleFunc("/api/cache/flush", s.handleCacheFlush)
+	mux.HandleFunc("/api/cache/list", s.handleCacheList)
+	mux.HandleFunc("/api/cache/inspect", s.handleCacheInspect)
 
 	mux.HandleFunc("/mcp/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -106,6 +140,19 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Caching Layer — READ
+	var role string // TODO: extract from headers if present
+	if s.cache != nil && t.Cache != nil && t.Cache.Enabled {
+		entry, err := s.cache.Get(r.Context(), t.Name, role, req.Arguments, *t.Cache)
+		if err == nil && entry != nil && entry.HitType != "miss" {
+			log.Printf("cache hit [%s] for %s (direct)", entry.HitType, t.Name)
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Cache-Hit", entry.HitType)
+			json.NewEncoder(w).Encode(ToolResult{Result: entry.Response})
+			return
+		}
+	}
+
 	result, err := t.Execute(r.Context(), req.Arguments, s.connector)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -113,6 +160,81 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Caching Layer — WRITE (Store)
+	if s.cache != nil && t.Cache != nil && t.Cache.Enabled && !result.IsError {
+		respJSON, _ := json.Marshal(result.Result)
+		if err := s.cache.Set(r.Context(), t.Name, role, req.Arguments, respJSON, *t.Cache); err != nil {
+			log.Printf("warn: failed to cache result for %s: %v", t.Name, err)
+		}
+	}
+
+	// Invalidation Layer — AUTO-FLUSH
+	if s.cache != nil && t.Cache != nil && len(t.Cache.FlushOn) > 0 && !result.IsError {
+		if err := s.cache.AutoFlush(r.Context(), t.Cache.FlushOn); err != nil {
+			log.Printf("warn: auto-flush failed for %s: %v", t.Name, err)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+func (s *Server) handleCacheFlush(w http.ResponseWriter, r *http.Request) {
+	if s.cache == nil {
+		http.Error(w, "cache not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	tool := r.URL.Query().Get("tool")
+	module := r.URL.Query().Get("module")
+	all := r.URL.Query().Get("all") == "true"
+
+	var count int
+	var err error
+
+	if all {
+		count, err = s.cache.FlushModule(r.Context(), "") // Empty matches all exact
+	} else if tool != "" {
+		count, err = s.cache.FlushTool(r.Context(), tool)
+	} else if module != "" {
+		count, err = s.cache.FlushModule(r.Context(), module)
+	} else {
+		http.Error(w, "missing tool, module or all parameter", http.StatusBadRequest)
+		return
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"deleted": count,
+		"status":  "ok",
+	})
+}
+
+func (s *Server) handleCacheStats(w http.ResponseWriter, r *http.Request) {
+	if s.cache == nil {
+		http.Error(w, "cache not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"apiVersion": "v1",
+		"kind":       "CacheStats",
+		"summary": map[string]any{
+			"status": "active",
+		},
+	})
+}
+
+func (s *Server) handleCacheList(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+func (s *Server) handleCacheInspect(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
 }

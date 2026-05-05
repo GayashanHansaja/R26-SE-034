@@ -10,17 +10,19 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/nimendra/ERPBridge/internal/cache"
 	"github.com/nimendra/ERPBridge/internal/connector"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 type Tool struct {
-	Name         string      `json:"name"`
-	Description  string      `json:"description"`
-	Module       string      `json:"module,omitempty"`
-	InputSchema  InputSchema `json:"inputSchema"`
-	OutputSchema *any        `json:"outputSchema,omitempty"` // Optional JSON schema for response validation
-	Endpoint     *Endpoint   `json:"endpoint,omitempty"`
+	Name         string        `json:"name"`
+	Description  string        `json:"description"`
+	Module       string        `json:"module,omitempty"`
+	InputSchema  InputSchema   `json:"inputSchema"`
+	OutputSchema *any          `json:"outputSchema,omitempty"` // Optional JSON schema for response validation
+	Endpoint     *Endpoint     `json:"endpoint,omitempty"`
+	Cache        *cache.Config `json:"cache,omitempty"`
 }
 
 type InputSchema struct {
