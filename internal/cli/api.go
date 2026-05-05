@@ -22,7 +22,7 @@ var apiRegisterCmd = &cobra.Command{
 	Use:   "register",
 	Short: "Register a new ERP API endpoint",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		reg, err := idp.NewRegistry("")
+		reg, err := idp.NewRegistry("", RootLog)
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ var apiListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all registered APIs",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		reg, err := idp.NewRegistry("")
+		reg, err := idp.NewRegistry("", RootLog)
 		if err != nil {
 			return err
 		}
@@ -105,7 +105,7 @@ var apiTestCmd = &cobra.Command{
 	Short: "Send a test request to a registered API",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		reg, err := idp.NewRegistry("")
+		reg, err := idp.NewRegistry("", RootLog)
 		if err != nil {
 			return err
 		}
@@ -116,7 +116,7 @@ var apiTestCmd = &cobra.Command{
 			return fmt.Errorf("API %s not found", name)
 		}
 
-		client := connector.NewClient()
+		client := connector.NewClient(RootLog)
 		ep := connector.EndpointConfig{
 			Method:  api.Method,
 			Path:    api.URL, // In this case, URL is absolute as per register

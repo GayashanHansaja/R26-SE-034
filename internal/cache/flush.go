@@ -4,7 +4,10 @@ package cache
 import (
     "context"
     "fmt"
+    "log/slog"
     "strings"
+
+    "github.com/nimendra/ERPBridge/internal/logger"
 )
 
 // FlushTool removes all exact and semantic cache entries for a given tool name.
@@ -33,6 +36,12 @@ func (m *Manager) FlushTool(ctx context.Context, toolName string) (int, error) {
         total += int(deleted)
     }
 
+    m.log.Info("cache flushed",
+        slog.String("trigger", "manual"),
+        slog.String("flushed_tool", toolName),
+        slog.Int("entries_deleted", total),
+    )
+
     return total, nil
 }
 
@@ -55,12 +64,49 @@ func (m *Manager) FlushModule(ctx context.Context, module string) (int, error) {
 
 // AutoFlush is called by the MCP server after a successful write tool response.
 func (m *Manager) AutoFlush(ctx context.Context, flushOn []string) error {
+    log := logger.FromContext(ctx)
     for _, toolName := range flushOn {
-        if _, err := m.FlushTool(ctx, toolName); err != nil {
-            fmt.Printf("warn: auto-flush failed for %s: %v\n", toolName, err)
+        count, err := m.FlushToolInternal(ctx, toolName)
+        if err != nil {
+            log.Warn("auto-flush failed", slog.String("flushed_tool", toolName), slog.String("error", err.Error()))
+        } else {
+            log.Info("cache flushed",
+                slog.String("trigger", "write_invalidation"),
+                slog.String("flushed_tool", toolName),
+                slog.Int("entries_deleted", count),
+            )
         }
     }
     return nil
+}
+
+// FlushToolInternal is a helper for FlushTool without the manual log entry.
+func (m *Manager) FlushToolInternal(ctx context.Context, toolName string) (int, error) {
+    total := 0
+
+    // 1. Flush exact cache entries (pattern scan)
+    pattern := fmt.Sprintf("exact:%s:*", toolName)
+    deleted, err := m.scanAndDelete(ctx, pattern)
+    if err != nil {
+        return total, err
+    }
+    total += deleted
+
+    // 2. Flush semantic entries (tag filter)
+    query := fmt.Sprintf("@tool:{%s}", escapeTag(toolName))
+    keys, err := m.searchKeys(ctx, query)
+    if err != nil {
+        return total, err
+    }
+    if len(keys) > 0 {
+        deleted, err := m.rdb.Del(ctx, keys...).Result()
+        if err != nil {
+            return total, err
+        }
+        total += int(deleted)
+    }
+
+    return total, nil
 }
 
 func (m *Manager) scanAndDelete(ctx context.Context, pattern string) (int, error) {

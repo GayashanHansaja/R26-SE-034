@@ -3,9 +3,12 @@ package idp
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/nimendra/ERPBridge/internal/logger"
 )
 
 type API struct {
@@ -26,10 +29,11 @@ type API struct {
 
 type Registry struct {
 	path string
+	log  *slog.Logger
 	APIs map[string]API `json:"apis"`
 }
 
-func NewRegistry(path string) (*Registry, error) {
+func NewRegistry(path string, rootLog *slog.Logger) (*Registry, error) {
 	if path == "" {
 		home, _ := os.UserHomeDir()
 		path = filepath.Join(home, ".bridgectl", "registry.json")
@@ -37,6 +41,7 @@ func NewRegistry(path string) (*Registry, error) {
 
 	reg := &Registry{
 		path: path,
+		log:  logger.Component(rootLog, "idp"),
 		APIs: make(map[string]API),
 	}
 
@@ -74,6 +79,13 @@ func (r *Registry) Register(api *API) error {
 	api.CreatedAt = time.Now()
 	api.Status = "active"
 	r.APIs[api.Name] = *api
+
+	r.log.Info("API registered", 
+		slog.String("name", api.Name),
+		slog.String("module", api.Module),
+		slog.String("url", api.URL),
+	)
+
 	return r.save()
 }
 

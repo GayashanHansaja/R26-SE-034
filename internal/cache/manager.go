@@ -6,10 +6,12 @@ import (
     "crypto/sha256"
     "encoding/json"
     "fmt"
+    "log/slog"
     "sort"
     "time"
 
     "github.com/redis/go-redis/v9"
+    "github.com/nimendra/ERPBridge/internal/logger"
 )
 
 type Config struct {
@@ -29,10 +31,15 @@ type Entry struct {
 type Manager struct {
     rdb      *redis.Client
     embedder Embedder // interface — swappable model
+    log      *slog.Logger
 }
 
-func NewManager(rdb *redis.Client, embedder Embedder) *Manager {
-    return &Manager{rdb: rdb, embedder: embedder}
+func NewManager(rdb *redis.Client, embedder Embedder, rootLog *slog.Logger) *Manager {
+    return &Manager{
+        rdb:      rdb,
+        embedder: embedder,
+        log:      logger.Component(rootLog, "cache"),
+    }
 }
 
 // EnsureIndex creates the RediSearch vector index if it doesn't exist.
@@ -67,24 +74,28 @@ func (m *Manager) Get(ctx context.Context, tool, role string, args map[string]an
         return &Entry{HitType: "miss"}, nil
     }
 
+    log := logger.FromContext(ctx)
     roleKey := roleScope(role, cfg.IsReadOnly)
 
     // Layer 1 — exact match
     key := exactKey(tool, roleKey, args)
     if entry, err := m.exactGet(ctx, key); err == nil && entry != nil {
         entry.HitType = "exact"
+        log.Info("cache hit", slog.String("type", "exact"), slog.String("key", key))
         return entry, nil
     }
 
     // Layer 2 — semantic fallback
     if cfg.SemanticThreshold > 0 && m.embedder != nil {
         argsJSON, _ := json.Marshal(args)
-        if entry, err := m.semanticGet(ctx, tool, roleKey, argsJSON, cfg.SemanticThreshold); err == nil && entry != nil {
+        if entry, score, err := m.semanticGet(ctx, tool, roleKey, argsJSON, cfg.SemanticThreshold); err == nil && entry != nil {
             entry.HitType = "semantic"
+            log.Info("cache hit", slog.String("type", "semantic"), slog.Float64("score", float64(score)))
             return entry, nil
         }
     }
 
+    log.Info("cache miss", slog.String("exact_key", key))
     return &Entry{HitType: "miss"}, nil
 }
 
@@ -94,6 +105,7 @@ func (m *Manager) Set(ctx context.Context, tool, role string, args map[string]an
         return nil
     }
 
+    log := logger.FromContext(ctx)
     roleKey := roleScope(role, cfg.IsReadOnly)
     ttl := time.Duration(cfg.TTLSeconds) * time.Second
     argsJSON, _ := json.Marshal(args)
@@ -101,8 +113,10 @@ func (m *Manager) Set(ctx context.Context, tool, role string, args map[string]an
     // Exact cache
     key := exactKey(tool, roleKey, args)
     if err := m.rdb.Set(ctx, key, response, ttl).Err(); err != nil {
+        log.Error("redis error", slog.String("operation", "SET"), slog.String("error", err.Error()))
         return fmt.Errorf("exact cache set: %w", err)
     }
+    log.Debug("cache stored", slog.String("key", key), slog.Int("ttl_seconds", cfg.TTLSeconds))
 
     // Semantic cache
     if cfg.SemanticThreshold > 0 && m.embedder != nil {

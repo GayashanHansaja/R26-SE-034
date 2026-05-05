@@ -19,10 +19,10 @@ type Embedder interface {
     Dim() int
 }
 
-func (m *Manager) semanticGet(ctx context.Context, tool, roleKey string, argsJSON []byte, threshold float32) (*Entry, error) {
+func (m *Manager) semanticGet(ctx context.Context, tool, roleKey string, argsJSON []byte, threshold float32) (*Entry, float32, error) {
     embedding, err := m.embedder.Embed(ctx, string(argsJSON))
     if err != nil {
-        return nil, err
+        return nil, 0, err
     }
 
     query := fmt.Sprintf(
@@ -38,24 +38,24 @@ func (m *Manager) semanticGet(ctx context.Context, tool, roleKey string, argsJSO
         "DIALECT", "2",
     ).Result()
     if err != nil {
-        return nil, err
+        return nil, 0, err
     }
 
     // Parse FT.SEARCH response
     // Format: [count, key1, [field1, val1, field2, val2, ...], key2, ...]
     data, ok := res.([]any)
     if !ok || len(data) < 3 {
-        return nil, nil
+        return nil, 0, nil
     }
 
     count, ok := data[0].(int64)
     if !ok || count == 0 {
-        return nil, nil
+        return nil, 0, nil
     }
 
     fields, ok := data[2].([]any)
     if !ok {
-        return nil, nil
+        return nil, 0, nil
     }
 
     var score float32
@@ -80,17 +80,13 @@ func (m *Manager) semanticGet(ctx context.Context, tool, roleKey string, argsJSO
     // Cosine distance → similarity: similarity = 1 - distance
     similarity := float32(1) - score
     if similarity < threshold {
-        return nil, nil // below threshold
+        return nil, similarity, nil // below threshold
     }
-
-    // Check TTL manually
-    // In a real impl, we'd fetch TTL from the hash or a separate key
-    // For now, we'll assume it's still valid if found (simplification for this phase)
 
     return &Entry{
         Response: json.RawMessage(response),
         CachedAt: time.Unix(created, 0),
-    }, nil
+    }, similarity, nil
 }
 
 func (m *Manager) semanticSet(ctx context.Context, tool, roleKey string, argsJSON, response json.RawMessage, embedding []float32, ttl time.Duration) error {

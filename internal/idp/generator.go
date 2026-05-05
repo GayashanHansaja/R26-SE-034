@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -11,18 +12,23 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/nimendra/ERPBridge/internal/logger"
 	"github.com/nimendra/ERPBridge/internal/mcp"
 )
 
 type Generator struct {
 	SchemasDir string
+	log        *slog.Logger
 }
 
-func NewGenerator(schemasDir string) *Generator {
+func NewGenerator(schemasDir string, rootLog *slog.Logger) *Generator {
 	if schemasDir == "" {
 		schemasDir = "schemas"
 	}
-	return &Generator{SchemasDir: schemasDir}
+	return &Generator{
+		SchemasDir: schemasDir,
+		log:        logger.Component(rootLog, "idp"),
+	}
 }
 
 func (g *Generator) Generate(api API) (*mcp.Tool, error) {
@@ -55,6 +61,7 @@ func (g *Generator) Generate(api API) (*mcp.Tool, error) {
 		}
 	}
 
+	g.log.Info("tool generated", slog.String("tool_name", tool.Name))
 	return tool, g.Save(tool)
 }
 
@@ -184,6 +191,7 @@ func (g *Generator) GenerateFromOpenAPI(api API, openapiURL string) ([]*mcp.Tool
 			if err := g.Save(tool); err != nil {
 				return nil, err
 			}
+			g.log.Info("tool generated from OpenAPI", slog.String("tool_name", toolName))
 			tools = append(tools, tool)
 		}
 	}

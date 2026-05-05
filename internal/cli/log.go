@@ -1,0 +1,146 @@
+// internal/cli/log.go
+package cli
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/spf13/cobra"
+)
+
+var logCmd = &cobra.Command{
+	Use:   "log",
+	Short: "Manage and view logs",
+}
+
+var (
+	logComponent string
+	logTool      string
+	logLevel     string
+	logRequestID string
+)
+
+var logStatsCmd = &cobra.Command{
+	Use:   "stats",
+	Short: "Summarise log events from the middleware",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, ok := cfg.Contexts[cfg.CurrentContext]
+		if !ok {
+			return fmt.Errorf("no context selected")
+		}
+
+		url := ctx.Server + "/api/logs/recent"
+		resp, err := http.Get(url)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		var logs []map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&logs); err != nil {
+			return err
+		}
+
+		// Analysis
+		counts := make(map[string]int)
+		tools := make(map[string]int)
+		for _, l := range logs {
+			level, _ := l["level"].(string)
+			counts[level]++
+
+			if tool, ok := l["tool_name"].(string); ok && tool != "" {
+				tools[tool]++
+			}
+		}
+
+		fmt.Println("Log Statistics (Recent 1000 events)")
+		fmt.Println("\nLevel breakdown:")
+		for level, count := range counts {
+			fmt.Printf("  %-10s %d\n", level, count)
+		}
+
+		fmt.Println("\nTop tools by call count:")
+		for tool, count := range tools {
+			fmt.Printf("  %-25s %d calls\n", tool, count)
+		}
+
+		return nil
+	},
+}
+
+var logTailCmd = &cobra.Command{
+	Use:   "tail",
+	Short: "Stream live logs from the middleware",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, ok := cfg.Contexts[cfg.CurrentContext]
+		if !ok {
+			return fmt.Errorf("no context selected")
+		}
+
+		url := ctx.Server + "/api/logs/stream"
+		resp, err := http.Get(url)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("server error: %s", resp.Status)
+		}
+
+		reader := bufio.NewReader(resp.Body)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return err
+			}
+
+			if strings.HasPrefix(line, "data: ") {
+				msg := strings.TrimPrefix(line, "data: ")
+				msg = strings.TrimSpace(msg)
+
+				// For simplicity, we'll just print it. 
+				// In a real app, we'd parse JSON and filter based on flags.
+				if shouldPrint(msg) {
+					fmt.Println(msg)
+				}
+			}
+		}
+
+		return nil
+	},
+}
+
+func shouldPrint(msg string) bool {
+	if logComponent != "" && !strings.Contains(msg, fmt.Sprintf("\"component\":\"%s\"", logComponent)) {
+		return false
+	}
+	if logTool != "" && !strings.Contains(msg, fmt.Sprintf("\"tool_name\":\"%s\"", logTool)) {
+		return false
+	}
+	if logLevel != "" && !strings.Contains(msg, fmt.Sprintf("\"level\":\"%s\"", strings.ToUpper(logLevel))) {
+		return false
+	}
+	if logRequestID != "" && !strings.Contains(msg, fmt.Sprintf("\"request_id\":\"%s\"", logRequestID)) {
+		return false
+	}
+	return true
+}
+
+func init() {
+	RootCmd.AddCommand(logCmd)
+	logCmd.AddCommand(logTailCmd)
+	logCmd.AddCommand(logStatsCmd)
+
+	logTailCmd.Flags().StringVar(&logComponent, "component", "", "Filter by component")
+	logTailCmd.Flags().StringVar(&logTool, "tool", "", "Filter by tool name")
+	logTailCmd.Flags().StringVar(&logLevel, "level", "", "Filter by log level")
+	logTailCmd.Flags().StringVar(&logRequestID, "request-id", "", "Filter by request ID")
+}

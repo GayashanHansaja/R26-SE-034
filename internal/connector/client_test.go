@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +17,7 @@ func TestClient_Call_APIKey(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := NewClient()
+	client := NewClient(slog.Default())
 	ep := EndpointConfig{
 		Method:  "GET",
 		Path:    "/test",

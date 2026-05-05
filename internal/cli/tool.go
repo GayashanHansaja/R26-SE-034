@@ -28,7 +28,7 @@ var toolGenerateCmd = &cobra.Command{
 		apiName, _ := cmd.Flags().GetString("api")
 		openapiURL, _ := cmd.Flags().GetString("openapi")
 		
-		reg, err := idp.NewRegistry("")
+		reg, err := idp.NewRegistry("", RootLog)
 		if err != nil {
 			return err
 		}
@@ -38,7 +38,7 @@ var toolGenerateCmd = &cobra.Command{
 			return fmt.Errorf("API %s not found", apiName)
 		}
 
-		gen := idp.NewGenerator("")
+		gen := idp.NewGenerator("", RootLog)
 		
 		if openapiURL != "" {
 			tools, err := gen.GenerateFromOpenAPI(api, openapiURL)

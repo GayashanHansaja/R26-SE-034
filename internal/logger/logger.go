@@ -1,0 +1,153 @@
+// internal/logger/logger.go
+package logger
+
+import (
+	"context"
+	"crypto/rand"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"strings"
+	"sync"
+)
+
+var (
+	logListeners []chan []byte
+	listenersMu  sync.RWMutex
+	logBuffer    [][]byte
+	bufferSize   = 1000
+)
+
+func Subscribe() chan []byte {
+	listenersMu.Lock()
+	defer listenersMu.Unlock()
+	ch := make(chan []byte, 100)
+	logListeners = append(logListeners, ch)
+	return ch
+}
+
+func Unsubscribe(ch chan []byte) {
+	listenersMu.Lock()
+	defer listenersMu.Unlock()
+	for i, l := range logListeners {
+		if l == ch {
+			logListeners = append(logListeners[:i], logListeners[i+1:]...)
+			close(ch)
+			break
+		}
+	}
+}
+
+func GetRecentLogs() [][]byte {
+	listenersMu.RLock()
+	defer listenersMu.RUnlock()
+	return append([][]byte{}, logBuffer...)
+}
+
+type broadcastHandler struct {
+	slog.Handler
+	mw io.Writer
+}
+
+func (h *broadcastHandler) Handle(ctx context.Context, r slog.Record) error {
+	// Standard handle
+	err := h.Handler.Handle(ctx, r)
+
+	// Broadcast & Buffer
+	listenersMu.Lock()
+	defer listenersMu.Unlock()
+	
+	var buf strings.Builder
+	jsonHandler := slog.NewJSONHandler(&buf, nil)
+	if err := jsonHandler.Handle(ctx, r); err == nil {
+		msg := []byte(buf.String())
+		
+		// Add to buffer
+		logBuffer = append(logBuffer, msg)
+		if len(logBuffer) > bufferSize {
+			logBuffer = logBuffer[1:]
+		}
+
+		if len(logListeners) > 0 {
+			for _, l := range logListeners {
+				select {
+				case l <- msg:
+				default:
+					// drop if full
+				}
+			}
+		}
+	}
+	return err
+}
+
+// Init creates the root logger based on APP_ENV and LOG_LEVEL.
+func Init() *slog.Logger {
+	level := parseLevel(os.Getenv("LOG_LEVEL"))
+	handler := buildHandler(level)
+	
+	// Wrap with broadcast handler
+	bHandler := &broadcastHandler{
+		Handler: handler,
+	}
+	
+	logger := slog.New(bHandler)
+	slog.SetDefault(logger)
+	return logger
+}
+
+func buildHandler(level slog.Level) slog.Handler {
+	opts := &slog.HandlerOptions{
+		Level:     level,
+		AddSource: level == slog.LevelDebug,
+	}
+
+	if os.Getenv("APP_ENV") == "production" {
+		return slog.NewJSONHandler(os.Stdout, opts)
+	}
+	return slog.NewTextHandler(os.Stdout, opts)
+}
+
+func parseLevel(s string) slog.Level {
+	switch strings.ToLower(s) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+// Component returns a logger pre-tagged with the component name.
+func Component(root *slog.Logger, name string) *slog.Logger {
+	envKey := "LOG_LEVEL_" + strings.ToUpper(name)
+	if override := os.Getenv(envKey); override != "" {
+		level := parseLevel(override)
+		// Wrap with a level-overriding handler for this component
+		return slog.New(&componentHandler{
+			Handler: root.Handler(),
+			level:   level,
+		}).With(slog.String("component", name))
+	}
+	return root.With(slog.String("component", name))
+}
+
+func NewRequestID() string {
+	b := make([]byte, 4)
+	rand.Read(b)
+	return fmt.Sprintf("req_%x", b)
+}
+
+// componentHandler is a simple wrapper to allow per-component levels (optional)
+type componentHandler struct {
+	slog.Handler
+	level slog.Level
+}
+
+func (h *componentHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.level
+}
