@@ -8,7 +8,7 @@ import (
 
 	"github.com/nimendra/ERPBridge/internal/output"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 var contextCmd = &cobra.Command{

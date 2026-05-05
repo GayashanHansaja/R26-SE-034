@@ -4,14 +4,13 @@ services:
 
   mock-erp:
     build:
-      context: .
-      dockerfile: Dockerfile.mock-erp
+      context: ./mock-erp
     ports:
       - "8081:8081"
     environment:
       - LOG_LEVEL=debug
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "8081"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       interval: 5s
       timeout: 5s
       retries: 5

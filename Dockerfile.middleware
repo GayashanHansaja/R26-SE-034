@@ -3,7 +3,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o middleware cmd/middleware/main.go
+RUN go build -o middleware services/middleware/main.go
 
 FROM alpine:latest
 WORKDIR /app

@@ -142,7 +142,7 @@ var toolInvokeCmd = &cobra.Command{
 		}
 
 		ctx := cfg.ActiveContext()
-		mcpURL := ctx.MCPServer + "/mcp/tools/call"
+		mcpURL := ctx.MCPServer + "/api/tools/invoke"
 
 		reqBody, _ := json.Marshal(mcp.ToolCallRequest{
 			Name:      name,
