@@ -2,6 +2,7 @@ package output
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"text/tabwriter"
 
@@ -46,6 +47,44 @@ func (f *Formatter) Print(v any) error {
 // render itself as an aligned table.
 type TableRenderer interface {
 	RenderTable(w io.Writer) error
+}
+
+// RawResponse wraps an io.Reader (like an HTTP response body)
+// and handles decoding it into a target struct for formatting.
+type RawResponse struct {
+	reader io.Reader
+	target any
+}
+
+func NewRawResponse(r io.Reader, target any) *RawResponse {
+	return &RawResponse{reader: r, target: target}
+}
+
+func (r *RawResponse) RenderTable(w io.Writer) error {
+	if err := json.NewDecoder(r.reader).Decode(r.target); err != nil {
+		return err
+	}
+	if tr, ok := r.target.(TableRenderer); ok {
+		return tr.RenderTable(w)
+	}
+	// Fallback to JSON if target doesn't implement TableRenderer
+	b, _ := json.MarshalIndent(r.target, "", "  ")
+	fmt.Fprintln(w, string(b))
+	return nil
+}
+
+func (r *RawResponse) MarshalJSON() ([]byte, error) {
+	if err := json.NewDecoder(r.reader).Decode(r.target); err != nil {
+		return nil, err
+	}
+	return json.Marshal(r.target)
+}
+
+func (r *RawResponse) MarshalYAML() (any, error) {
+	if err := json.NewDecoder(r.reader).Decode(r.target); err != nil {
+		return nil, err
+	}
+	return r.target, nil
 }
 
 // NewTabWriter returns a pre-configured tab writer for table output.
