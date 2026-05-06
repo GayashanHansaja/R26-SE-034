@@ -81,10 +81,10 @@ type ToolGenerateResponse struct {
 }
 
 func (r *ToolGenerateResponse) RenderTable(w io.Writer) error {
-	fmt.Fprintf(w, "Generating tool schema for  %s\n\n", r.ToolName)
-	fmt.Fprintf(w, "  Saving schema...       ✓ %s\n\n", r.Path)
-	fmt.Fprintf(w, "Tool name    %s\n", r.ToolName)
-	fmt.Fprintln(w, "\n✓ Tool generated successfully.")
+	_, _ = fmt.Fprintf(w, "Generating tool schema for  %s\n\n", r.ToolName)
+	_, _ = fmt.Fprintf(w, "  Saving schema...       ✓ %s\n\n", r.Path)
+	_, _ = fmt.Fprintf(w, "Tool name    %s\n", r.ToolName)
+	_, _ = fmt.Fprintln(w, "\n✓ Tool generated successfully.")
 	return nil
 }
 
@@ -142,9 +142,9 @@ type ToolListResponse struct {
 
 func (r *ToolListResponse) RenderTable(w io.Writer) error {
 	tw := output.NewTabWriter(w)
-	fmt.Fprintln(tw, "NAME\tMODULE\tSTATUS\tGENERATED")
+	_, _ = fmt.Fprintln(tw, "NAME\tMODULE\tSTATUS\tGENERATED")
 	for _, item := range r.Items {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
 			item.Name, item.Module, item.Status,
 			item.GeneratedAt.Format("2006-01-02 15:04"))
 	}

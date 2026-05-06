@@ -158,7 +158,7 @@ URL, and authentication headers, and displays the response status and latency.`,
 		if err != nil {
 			return fmt.Errorf("request failed: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var body any
 		_ = json.NewDecoder(resp.Body).Decode(&body)

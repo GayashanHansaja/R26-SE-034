@@ -28,8 +28,8 @@ including total key counts, memory usage in Redis, and hit/miss trends.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {
-			return NewError(CodePrecondFail, "NO_CONTEXT", 
-				"No context selected", 
+			return NewError(CodePrecondFail, "NO_CONTEXT",
+				"No context selected",
 				"Use 'bridgectl context set' to select an active environment.")
 		}
 
@@ -37,11 +37,11 @@ including total key counts, memory usage in Redis, and hit/miss trends.`,
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
-			return NewError(CodeGeneralErr, "SERVER_ERROR", 
-				fmt.Sprintf("Server returned error: %s", resp.Status), 
+			return NewError(CodeGeneralErr, "SERVER_ERROR",
+				fmt.Sprintf("Server returned error: %s", resp.Status),
 				"Verify the middleware server is running and reachable.")
 		}
 
@@ -67,8 +67,8 @@ or clear the entire cache with --all.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {
-			return NewError(CodePrecondFail, "NO_CONTEXT", 
-				"No context selected", 
+			return NewError(CodePrecondFail, "NO_CONTEXT",
+				"No context selected",
 				"Use 'bridgectl context set' to select an active environment.")
 		}
 
@@ -89,7 +89,7 @@ or clear the entire cache with --all.`,
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var result FlushResponse
 		return formatter.Print(output.NewRawResponse(resp.Body, &result))
@@ -102,8 +102,8 @@ type FlushResponse struct {
 }
 
 func (r *FlushResponse) RenderTable(w io.Writer) error {
-	fmt.Fprintf(w, "Deleted %d cache entries.\n", r.Deleted)
-	return nil
+	_, err := fmt.Fprintf(w, "Deleted %d cache entries.\n", r.Deleted)
+	return err
 }
 
 func init() {
