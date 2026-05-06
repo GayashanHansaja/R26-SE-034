@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/nimendra/ERPBridge/internal/cache"
 	"github.com/nimendra/ERPBridge/internal/logger"
+	"github.com/nimendra/ERPBridge/internal/metrics"
 )
 
 type Server struct {
@@ -19,23 +21,120 @@ type Server struct {
 	connector ERPConnector
 	cache     *cache.Manager
 	log       *slog.Logger
-	tools     map[string]*Tool // Internal storage for our Tool metadata
+	mu        sync.RWMutex
+	tools     map[string]*Tool
+	resources map[string]*Resource
+	prompts   map[string]*Prompt
 }
 
 func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Logger) *Server {
 	s := server.NewMCPServer("ERPBridge", "1.0.0")
-	return &Server{
+	srv := &Server{
 		mcpServer: s,
 		connector: connector,
 		cache:     cacheMgr,
 		log:       logger.Component(rootLog, "mcp"),
 		tools:     make(map[string]*Tool),
+		resources: make(map[string]*Resource),
+		prompts:   make(map[string]*Prompt),
 	}
+
+	return srv
+}
+
+// RegisterResource adds a resource to the server.
+func (s *Server) RegisterResource(r *Resource) {
+	s.mu.Lock()
+	s.resources[r.URITemplate] = r
+	s.mu.Unlock()
+	mcpResource := mcp.NewResource(r.Name, r.URITemplate,
+		mcp.WithResourceDescription(r.Description),
+		mcp.WithMIMEType(r.MimeType),
+	)
+	s.mcpServer.AddResource(mcpResource, s.handleMCPResourceRead)
+	s.log.Info("registered MCP resource", slog.String("name", r.Name), slog.String("uri", r.URITemplate))
+}
+
+// RegisterPrompt adds a prompt template to the server.
+func (s *Server) RegisterPrompt(p *Prompt) {
+	s.mu.Lock()
+	s.prompts[p.Name] = p
+	s.mu.Unlock()
+	mcpPrompt := mcp.NewPrompt(p.Name,
+		mcp.WithPromptDescription(p.Description),
+	)
+	for _, a := range p.Arguments {
+		mcpPrompt.Arguments = append(mcpPrompt.Arguments, mcp.PromptArgument{
+			Name:        a.Name,
+			Description: a.Description,
+			Required:    a.Required,
+		})
+	}
+	s.mcpServer.AddPrompt(mcpPrompt, s.handleMCPPromptGet)
+	s.log.Info("registered MCP prompt", slog.String("name", p.Name))
+}
+
+func (s *Server) handleMCPResourceRead(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	// Find resource by URI matching (simplistic for template)
+	// In a real implementation, we'd use a regex or template matcher
+	s.mu.RLock()
+	r, ok := s.resources[request.Params.URI]
+	s.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("resource not found: %s", request.Params.URI)
+	}
+
+	content, err := r.Execute(ctx, request.Params.URI, s.connector)
+	if err != nil {
+		return nil, err
+	}
+
+	return []mcp.ResourceContents{
+		mcp.TextResourceContents{
+			URI:      request.Params.URI,
+			MIMEType: r.MimeType,
+			Text:     content,
+		},
+	}, nil
+}
+
+func (s *Server) handleMCPPromptGet(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	s.mu.RLock()
+	p, ok := s.prompts[request.Params.Name]
+	s.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("prompt not found: %s", request.Params.Name)
+	}
+
+	// Simple template expansion (naive)
+	text := p.Template
+	if request.Params.Arguments != nil {
+		for k, v := range request.Params.Arguments {
+			text = fmt.Sprintf("%s\n\n%s: %v", text, k, v)
+		}
+	}
+
+	return &mcp.GetPromptResult{
+		Description: p.Description,
+		Messages: []mcp.PromptMessage{
+			{
+				Role: mcp.RoleUser,
+				Content: mcp.TextContent{
+					Type: "text",
+					Text: text,
+				},
+			},
+		},
+	}, nil
 }
 
 // RegisterTool adds a tool to the server's registry at runtime.
 func (s *Server) RegisterTool(t *Tool) {
+	s.mu.Lock()
 	s.tools[t.Name] = t
+	s.mu.Unlock()
 
 	// Serialize the input schema to JSON.RawMessage
 	schemaJSON, err := json.Marshal(t.InputSchema)
@@ -60,7 +159,10 @@ func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 		start := time.Now()
 		reqID := logger.NewRequestID()
 
+		s.mu.RLock()
 		t, ok := s.tools[name]
+		s.mu.RUnlock()
+
 		if !ok {
 			s.log.Warn("tool not found", slog.String("request_id", reqID), slog.String("tool_name", name))
 			return nil, fmt.Errorf("tool not found: %s", name)
@@ -93,6 +195,12 @@ func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 			if err == nil && entry != nil && entry.HitType != "miss" {
 				cacheStatus = "HIT"
 				cacheType = entry.HitType
+
+				// Record metrics
+				metrics.CacheHitsTotal.WithLabelValues(cacheType).Inc()
+				metrics.ToolInvocationsTotal.WithLabelValues(t.Name, cacheStatus).Inc()
+				metrics.ToolLatency.WithLabelValues(t.Name).Observe(time.Since(start).Seconds())
+
 				reqLog.Info("tool call complete",
 					slog.Int("latency_ms", int(time.Since(start).Milliseconds())),
 					slog.String("cache_status", cacheStatus),
@@ -100,10 +208,12 @@ func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 				)
 				return mcp.NewToolResultText(string(entry.Response)), nil
 			}
+			metrics.CacheMissesTotal.Inc()
 		}
 
 		result, err := t.Execute(ctx, args, s.connector)
 		if err != nil {
+			metrics.ToolInvocationsTotal.WithLabelValues(t.Name, "ERROR").Inc()
 			reqLog.Error("tool call failed", slog.String("error", err.Error()), slog.Int("latency_ms", int(time.Since(start).Milliseconds())))
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -128,6 +238,9 @@ func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 			slog.String("cache_status", cacheStatus),
 			slog.String("cache_type", cacheType),
 		)
+
+		metrics.ToolInvocationsTotal.WithLabelValues(t.Name, cacheStatus).Inc()
+		metrics.ToolLatency.WithLabelValues(t.Name).Observe(time.Since(start).Seconds())
 
 		// Convert result to mcp-go format
 		resultJSON, _ := json.Marshal(result.Result)
@@ -177,7 +290,10 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.mu.RLock()
 	t, ok := s.tools[req.Name]
+	s.mu.RUnlock()
+
 	if !ok {
 		s.log.Warn("tool not found", slog.String("request_id", reqID), slog.String("tool_name", req.Name))
 		http.Error(w, "tool not found", http.StatusNotFound)
@@ -291,13 +407,18 @@ func (s *Server) handleCacheStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stats, err := s.cache.Stats(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"apiVersion": "v1",
 		"kind":       "CacheStats",
-		"summary": map[string]any{
-			"status": "active",
-		},
+		"status":     "active",
+		"stats":      stats,
 	})
 }
 
