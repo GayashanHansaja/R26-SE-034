@@ -14,10 +14,9 @@ import (
 )
 
 var (
-	cfgFile     string
 	outputFormat string
 	ctxOverride  string
-	verbose     bool
+	verbose      bool
 
 	cfg       *config.Config
 	formatter *output.Formatter
@@ -40,9 +39,9 @@ and supports multiple output formats including Table, JSON, and YAML.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Initialize Logger for CLI
 		if verbose {
-			os.Setenv("LOG_LEVEL", "debug")
+			_ = os.Setenv("LOG_LEVEL", "debug")
 		} else {
-			os.Setenv("LOG_LEVEL", "error") // Only errors in CLI by default
+			_ = os.Setenv("LOG_LEVEL", "error") // Only errors in CLI by default
 		}
 		RootLog = logger.Init()
 
@@ -77,7 +76,7 @@ func handleError(err error) {
 			// In JSON mode, only the error object goes to Stdout
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
-			enc.Encode(aErr)
+			_ = enc.Encode(aErr)
 		} else {
 			// Human-readable error to Stderr
 			fmt.Fprintf(os.Stderr, "Error: [%s] %s\n", aErr.ErrorCode, aErr.Message)
