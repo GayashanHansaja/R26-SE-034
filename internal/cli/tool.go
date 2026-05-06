@@ -186,11 +186,52 @@ var toolInvokeCmd = &cobra.Command{
 	},
 }
 
+var toolValidateCmd = &cobra.Command{
+	Use:   "validate [file]",
+	Short: "Validate an MCP tool schema (JSON) or an OpenAPI spec (YAML)",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path := args[0]
+		ext := filepath.Ext(path)
+
+		if ext == ".json" {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("read file: %w", err)
+			}
+			var tool mcp.Tool
+			if err := json.Unmarshal(data, &tool); err != nil {
+				return fmt.Errorf("invalid MCP tool schema: %w", err)
+			}
+			if tool.Name == "" {
+				return fmt.Errorf("invalid schema: missing 'name'")
+			}
+			fmt.Printf("✓ MCP Tool schema '%s' is valid.\n", path)
+			return nil
+		}
+
+		if ext == ".yaml" || ext == ".yml" {
+			gen := idp.NewGenerator("", RootLog)
+			// Mock API for validation context
+			mockAPI := idp.API{Name: "validate", Module: "test"}
+			_, err := gen.GenerateFromOpenAPI(mockAPI, path)
+			if err != nil {
+				return fmt.Errorf("invalid OpenAPI spec: %w", err)
+			}
+			fmt.Printf("✓ OpenAPI specification '%s' is valid and compatible with ERPBridge.\n", path)
+			return nil
+		}
+
+		return fmt.Errorf("unsupported file extension: %s (expected .json, .yaml, or .yml)", ext)
+	},
+}
+
 func init() {
 	RootCmd.AddCommand(toolCmd)
 	toolCmd.AddCommand(toolGenerateCmd)
 	toolCmd.AddCommand(toolListCmd)
 	toolCmd.AddCommand(toolInvokeCmd)
+	toolCmd.AddCommand(toolValidateCmd)
 
 	toolGenerateCmd.Flags().String("api", "", "Name of the registered API to generate from")
 	toolGenerateCmd.Flags().String("openapi", "", "URL or path to an OpenAPI spec")

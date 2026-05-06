@@ -15,6 +15,8 @@ import (
         "github.com/nimendra/ERPBridge/internal/connector"
         "github.com/nimendra/ERPBridge/internal/logger"
         "github.com/nimendra/ERPBridge/internal/mcp"
+        "github.com/prometheus/client_golang/prometheus/promhttp"
+        "github.com/fsnotify/fsnotify"
 )
 
 func main() {
@@ -66,8 +68,14 @@ func main() {
         // Load tools from schemas directory
         loadTools(server, schemasDir)
 
+        // Start Hot Reloading
+        go watchSchemas(server, schemasDir)
+
         mux := http.NewServeMux()
         server.ServeHTTP(mux, baseURL)
+
+        // Metrics endpoint
+        mux.Handle("/metrics", promhttp.Handler())
 
         slog.Info("Bridge Middleware listening", 
                 slog.String("port", mcpPort),
@@ -78,26 +86,68 @@ func main() {
 
 
 func loadTools(s *mcp.Server, dir string) {
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && filepath.Ext(path) == ".json" {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				log.Printf("failed to read schema %s: %v", path, err)
-				return nil
-			}
-			var tool mcp.Tool
-			if err := json.Unmarshal(data, &tool); err != nil {
-				log.Printf("failed to unmarshal schema %s: %v", path, err)
-				return nil
-			}
-			s.RegisterTool(&tool)
-		}
-		return nil
-	})
+        slog.Info("loading tools", slog.String("directory", dir))
+        err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+                if err != nil {
+                        return err
+                }
+                if !info.IsDir() && filepath.Ext(path) == ".json" {
+                        reloadTool(s, path)
+                }
+                return nil
+        })
+        if err != nil {
+                log.Printf("error walking schemas directory: %v", err)
+        }
+}
+
+func watchSchemas(s *mcp.Server, dir string) {
+	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Printf("error walking schemas directory: %v", err)
+		slog.Error("failed to create watcher", slog.String("error", err.Error()))
+		return
+	}
+	defer watcher.Close()
+
+	if err := watcher.Add(dir); err != nil {
+		slog.Error("failed to watch directory", slog.String("error", err.Error()), slog.String("directory", dir))
+		return
+	}
+
+	slog.Info("schema hot-reloading active", slog.String("directory", dir))
+
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
+				if filepath.Ext(event.Name) == ".json" {
+					slog.Info("schema change detected, reloading", slog.String("file", event.Name))
+					reloadTool(s, event.Name)
+				}
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			slog.Error("watcher error", slog.String("error", err.Error()))
+		}
 	}
 }
+
+func reloadTool(s *mcp.Server, path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		slog.Error("failed to read schema", slog.String("path", path), slog.String("error", err.Error()))
+		return
+	}
+	var tool mcp.Tool
+	if err := json.Unmarshal(data, &tool); err != nil {
+		slog.Error("failed to unmarshal schema", slog.String("path", path), slog.String("error", err.Error()))
+		return
+	}
+	s.RegisterTool(&tool)
+}
+
