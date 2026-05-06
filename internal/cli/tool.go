@@ -37,7 +37,7 @@ definitions for all operations.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		apiName, _ := cmd.Flags().GetString("api")
 		openapiURL, _ := cmd.Flags().GetString("openapi")
-		
+
 		reg, err := idp.NewRegistry("", RootLog)
 		if err != nil {
 			return err
@@ -49,7 +49,7 @@ definitions for all operations.`,
 		}
 
 		gen := idp.NewGenerator("", RootLog)
-		
+
 		if openapiURL != "" {
 			tools, err := gen.GenerateFromOpenAPI(api, openapiURL)
 			if err != nil {
@@ -89,9 +89,9 @@ func (r *ToolGenerateResponse) RenderTable(w io.Writer) error {
 }
 
 var toolListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all generated MCP tool schemas",
-	Long:  `Scan the schemas/ directory and display all available MCP tool definitions.`,
+	Use:     "list",
+	Short:   "List all generated MCP tool schemas",
+	Long:    `Scan the schemas/ directory and display all available MCP tool definitions.`,
 	Example: `  bridgectl tool list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		schemasDir := "schemas"
@@ -159,14 +159,14 @@ internal API. This bypasses the full MCP transport but follows the same
 logic (including caching and validation), making it ideal for testing 
 how an AI agent would experience the tool.`,
 	Example: `  bridgectl tool invoke finance.get-invoices '{"page": 1}'`,
-	Args:  cobra.RangeArgs(1, 2),
+	Args:    cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 		var argMap map[string]any
 		if len(args) > 1 {
 			if err := json.Unmarshal([]byte(args[1]), &argMap); err != nil {
-				return NewError(CodeBadArgs, "INVALID_ARGUMENTS", 
-					fmt.Sprintf("Invalid arguments JSON: %v", err), 
+				return NewError(CodeBadArgs, "INVALID_ARGUMENTS",
+					fmt.Sprintf("Invalid arguments JSON: %v", err),
 					"Ensure the arguments are a valid JSON string, e.g., '{\"page\": 1}'.")
 			}
 		}
@@ -183,7 +183,7 @@ how an AI agent would experience the tool.`,
 		var netClient = &http.Client{
 			Timeout: time.Second * 10,
 		}
-		
+
 		// In a real app, use the context override
 		resp, err := netClient.Post(mcpURL, "application/json", strings.NewReader(string(reqBody)))
 		if err != nil {
@@ -213,7 +213,7 @@ a JSON schema follows the MCP tool structure or that an OpenAPI
 specification can be correctly parsed and transformed by ERPBridge.`,
 	Example: `  bridgectl tool validate schemas/finance/get-invoices.json
   bridgectl tool validate ./specs/legacy-erp.yaml`,
-	Args:  cobra.ExactArgs(1),
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path := args[0]
 		ext := filepath.Ext(path)
@@ -221,19 +221,19 @@ specification can be correctly parsed and transformed by ERPBridge.`,
 		if ext == ".json" {
 			data, err := os.ReadFile(path)
 			if err != nil {
-				return NewError(CodeNotFound, "FILE_NOT_FOUND", 
-					fmt.Sprintf("Schema file not found: %s", path), 
+				return NewError(CodeNotFound, "FILE_NOT_FOUND",
+					fmt.Sprintf("Schema file not found: %s", path),
 					"Check the file path and try again.")
 			}
 			var tool mcp.Tool
 			if err := json.Unmarshal(data, &tool); err != nil {
-				return NewError(CodeBadArgs, "INVALID_SCHEMA", 
-					fmt.Sprintf("Invalid MCP tool schema: %v", err), 
+				return NewError(CodeBadArgs, "INVALID_SCHEMA",
+					fmt.Sprintf("Invalid MCP tool schema: %v", err),
 					"Ensure the file contains a valid MCP Tool JSON schema.")
 			}
 			if tool.Name == "" {
-				return NewError(CodeBadArgs, "MISSING_TOOL_NAME", 
-					"Invalid schema: missing 'name' field", 
+				return NewError(CodeBadArgs, "MISSING_TOOL_NAME",
+					"Invalid schema: missing 'name' field",
 					"MCP tool schemas must have a 'name' field.")
 			}
 			fmt.Fprintf(os.Stderr, "✓ MCP Tool schema '%s' is valid.\n", path)
@@ -246,8 +246,8 @@ specification can be correctly parsed and transformed by ERPBridge.`,
 			mockAPI := idp.API{Name: "validate", Module: "test"}
 			_, err := gen.GenerateFromOpenAPI(mockAPI, path)
 			if err != nil {
-				return NewError(CodeBadArgs, "INVALID_OPENAPI", 
-					fmt.Sprintf("Invalid OpenAPI spec: %v", err), 
+				return NewError(CodeBadArgs, "INVALID_OPENAPI",
+					fmt.Sprintf("Invalid OpenAPI spec: %v", err),
 					"Ensure the file is a valid OpenAPI specification compatible with ERPBridge.")
 			}
 			fmt.Fprintf(os.Stderr, "✓ OpenAPI specification '%s' is valid and compatible with ERPBridge.\n", path)
@@ -267,5 +267,5 @@ func init() {
 
 	toolGenerateCmd.Flags().String("api", "", "Name of the registered API to generate from")
 	toolGenerateCmd.Flags().String("openapi", "", "URL or path to an OpenAPI spec")
-	toolGenerateCmd.MarkFlagRequired("api")
+	_ = toolGenerateCmd.MarkFlagRequired("api")
 }
