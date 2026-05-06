@@ -7,8 +7,8 @@ import (
 
 func TestLoad_Defaults(t *testing.T) {
 	// Ensure no env vars interfere
-	os.Unsetenv("BRIDGE_CONTEXT")
-	os.Unsetenv("BRIDGE_SERVER")
+	_ = os.Unsetenv("BRIDGE_CONTEXT")
+	_ = os.Unsetenv("BRIDGE_SERVER")
 
 	cfg, err := Load()
 	if err != nil {
@@ -26,8 +26,8 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_EnvOverrides(t *testing.T) {
-	os.Setenv("BRIDGE_SERVER", "http://overridden:8082")
-	defer os.Unsetenv("BRIDGE_SERVER")
+	_ = os.Setenv("BRIDGE_SERVER", "http://overridden:8082")
+	defer func() { _ = os.Unsetenv("BRIDGE_SERVER") }()
 
 	cfg, err := Load()
 	if err != nil {
