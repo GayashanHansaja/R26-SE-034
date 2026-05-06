@@ -10,10 +10,10 @@ import (
 )
 
 type Resource struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	URITemplate string   `json:"uriTemplate"`
-	MimeType    string   `json:"mimeType,omitempty"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	URITemplate string    `json:"uriTemplate"`
+	MimeType    string    `json:"mimeType,omitempty"`
 	Endpoint    *Endpoint `json:"endpoint,omitempty"`
 }
 
@@ -44,7 +44,7 @@ func (r *Resource) Execute(ctx context.Context, uri string, conn ERPConnector) (
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
