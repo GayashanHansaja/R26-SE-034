@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -23,9 +25,11 @@ var (
 )
 
 var RootCmd = &cobra.Command{
-	Use:     "bridgectl",
-	Short:   "Middleware for Bridging Legacy ERP and Agentic AI",
-	Version: "1.0.0",
+	Use:           "bridgectl",
+	Short:         "Middleware for Bridging Legacy ERP and Agentic AI",
+	Version:       "1.0.0",
+	SilenceErrors: true,
+	SilenceUsage:  true,
 	Long: `bridgectl is the developer CLI for the ERPBridge ecosystem. 
 It provides tools to manage environments, register and test ERP APIs, 
 generate and validate MCP tool schemas, and monitor the middleware's 
@@ -62,9 +66,31 @@ and supports multiple output formats including Table, JSON, and YAML.`,
 
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		handleError(err)
 	}
+}
+
+func handleError(err error) {
+	var aErr *AgentActionableError
+	if errors.As(err, &aErr) {
+		if outputFormat == "json" {
+			// In JSON mode, only the error object goes to Stdout
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			enc.Encode(aErr)
+		} else {
+			// Human-readable error to Stderr
+			fmt.Fprintf(os.Stderr, "Error: [%s] %s\n", aErr.ErrorCode, aErr.Message)
+			if aErr.Suggestion != "" {
+				fmt.Fprintf(os.Stderr, "Suggestion: %s\n", aErr.Suggestion)
+			}
+		}
+		os.Exit(aErr.Code)
+	}
+
+	// General error
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(CodeGeneralErr)
 }
 
 func init() {

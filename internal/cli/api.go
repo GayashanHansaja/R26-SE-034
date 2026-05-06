@@ -134,7 +134,9 @@ URL, and authentication headers, and displays the response status and latency.`,
 		name := args[0]
 		api, ok := reg.Get(name)
 		if !ok {
-			return fmt.Errorf("API %s not found", name)
+			return NewError(CodeNotFound, "API_NOT_FOUND", 
+				fmt.Sprintf("API %s not found in local registry", name), 
+				"Run 'bridgectl api list' to see available APIs.")
 		}
 
 		client := connector.NewClient(RootLog)

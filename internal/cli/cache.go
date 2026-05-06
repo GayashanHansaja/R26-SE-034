@@ -28,7 +28,9 @@ including total key counts, memory usage in Redis, and hit/miss trends.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {
-			return fmt.Errorf("no context selected")
+			return NewError(CodePrecondFail, "NO_CONTEXT", 
+				"No context selected", 
+				"Use 'bridgectl context set' to select an active environment.")
 		}
 
 		resp, err := http.Get(ctx.Server + "/api/cache/stats")
@@ -38,7 +40,9 @@ including total key counts, memory usage in Redis, and hit/miss trends.`,
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("server error: %s", resp.Status)
+			return NewError(CodeGeneralErr, "SERVER_ERROR", 
+				fmt.Sprintf("Server returned error: %s", resp.Status), 
+				"Verify the middleware server is running and reachable.")
 		}
 
 		var result any
@@ -63,7 +67,9 @@ or clear the entire cache with --all.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {
-			return fmt.Errorf("no context selected")
+			return NewError(CodePrecondFail, "NO_CONTEXT", 
+				"No context selected", 
+				"Use 'bridgectl context set' to select an active environment.")
 		}
 
 		u, _ := url.Parse(ctx.Server + "/api/cache/flush")
