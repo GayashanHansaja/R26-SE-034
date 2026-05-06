@@ -12,19 +12,19 @@ import (
 )
 
 type API struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	URL         string    `json:"url"`
-	Method      string    `json:"method"`
-	AuthType    string    `json:"authType"`
-	AuthHeader  string    `json:"authHeader,omitempty"`
-	AuthKey     string    `json:"authKey,omitempty"`
-	AuthUsername string   `json:"authUsername,omitempty"`
-	AuthToken   string    `json:"authToken,omitempty"`
-	Module      string    `json:"module"`
-	Description string    `json:"description"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	URL          string    `json:"url"`
+	Method       string    `json:"method"`
+	AuthType     string    `json:"authType"`
+	AuthHeader   string    `json:"authHeader,omitempty"`
+	AuthKey      string    `json:"authKey,omitempty"`
+	AuthUsername string    `json:"authUsername,omitempty"`
+	AuthToken    string    `json:"authToken,omitempty"`
+	Module       string    `json:"module"`
+	Description  string    `json:"description"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 type Registry struct {
@@ -45,9 +45,7 @@ func NewRegistry(path string, rootLog *slog.Logger) (*Registry, error) {
 		APIs: make(map[string]API),
 	}
 
-	if err := reg.load(); err != nil {
-		// If file doesn't exist, it's fine, we'll create it on save
-	}
+	_ = reg.load() // If file doesn't exist, it's fine, we'll create it on save
 
 	return reg, nil
 }
@@ -80,7 +78,7 @@ func (r *Registry) Register(api *API) error {
 	api.Status = "active"
 	r.APIs[api.Name] = *api
 
-	r.log.Info("API registered", 
+	r.log.Info("API registered",
 		slog.String("name", api.Name),
 		slog.String("module", api.Module),
 		slog.String("url", api.URL),
