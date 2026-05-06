@@ -5,9 +5,26 @@ Middleware for bridging legacy ERP systems with Agentic AI using the Model Conte
 ## Architecture
 
 - **mock-erp/**: Temporary Python FastAPI service simulating legacy ERP modules (Finance, HR, Inventory).
-- **services/middleware/**: Go-based MCP Server (HTTP/SSE) + ERP Connector.
+- **services/erpbridge-server/**: Go-based MCP Server (HTTP/SSE) + ERP Connector.
 - **tools/bridgectl/**: Go CLI for developers and AI agents to manage APIs and tools.
 - **internal/**: Shared Go libraries for configuration, protocol handling, and I/O.
+
+## Packages
+
+| Package | Type | Binary Name | Description |
+| :--- | :--- | :--- | :--- |
+| **ERPBridge Server** | Service | `erpbridge-server` | The core MCP Server. Handles ERP connections, resilience, and semantic caching. |
+| **bridgectl** | CLI | `bridgectl` | Developer tool for environment management, schema validation, and real-time monitoring. |
+
+## Key Differences
+
+| Feature | ERPBridge Server | bridgectl |
+| :--- | :--- | :--- |
+| **Primary Role** | Runtime execution and protocol bridging. | Development, debugging, and management. |
+| **Connectivity** | Connects to Redis and Legacy ERP APIs. | Connects to ERPBridge Server API. |
+| **Lifecycle** | Long-running daemon (Docker/Kubernetes). | Short-lived command execution. |
+| **Interface** | SSE (for agents) / HTTP (for metrics/CLI). | Standard Output (Table/JSON/YAML). |
+| **State** | Manages semantic cache and circuit breakers. | Stateless; reads configuration from `~/.erpbridge.yaml`. |
 
 ## Stack
 - **Go**: 1.26.2
@@ -37,9 +54,9 @@ docker compose up -d --build
    python main.py
    ```
 
-2. **Middleware**:
+2. **ERPBridge Server**:
    ```bash
-   go run services/middleware/main.go
+   go run services/erpbridge-server/main.go
    ```
 
 3. **bridgectl**:
@@ -55,8 +72,8 @@ ERPBridge acts as a translation layer between legacy ERP systems and modern AI a
 
 ### 2. Core Components
 
-#### Middleware
-The Middleware service is an MCP Server implemented in Go. It:
+#### ERPBridge Server
+The ERPBridge Server service is an MCP Server implemented in Go. It:
 - **Discovers Tools**: Maps ERP API endpoints to MCP definitions with **Hot Reloading** support.
 - **Resilience**: Implements **Circuit Breaking** and **Intelligent Retries** to handle ERP instability.
 - **Advanced MCP**: Supports Tools (actions), **Resources** (read-only data), and **Prompts** (workflows).
