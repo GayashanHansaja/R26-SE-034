@@ -63,7 +63,7 @@ func TestServer_HandlePromptGet(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
 	assert.Len(t, res.Messages, 1)
-	
+
 	textContent := res.Messages[0].Content.(mcp.TextContent).Text
 	assert.Contains(t, textContent, "Hello {{name}}")
 	assert.Contains(t, textContent, "name: world")

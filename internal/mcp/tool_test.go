@@ -60,7 +60,7 @@ func TestTool_Execute(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.False(t, result.IsError)
-	
+
 	resultMap, ok := result.Result.(map[string]any)
 	assert.True(t, ok)
 	assert.Equal(t, "success", resultMap["status"])
