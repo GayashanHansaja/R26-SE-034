@@ -40,7 +40,7 @@ builds:
 
 archives:
   - id: middleware
-    builds: [middleware]
+    ids: [middleware]
     formats: ['tar.gz']
     name_template: >-
       middleware_
@@ -56,7 +56,7 @@ archives:
         formats: ['zip']
 
   - id: bridgectl
-    builds: [bridgectl]
+    ids: [bridgectl]
     formats: ['tar.gz']
     name_template: >-
       bridgectl_
@@ -72,7 +72,7 @@ archives:
         formats: ['zip']
 
   - id: combined
-    builds: [middleware, bridgectl]
+    ids: [middleware, bridgectl]
     formats: ['tar.gz']
     name_template: >-
       erpbridge-full_
@@ -87,50 +87,20 @@ archives:
       - goos: windows
         formats: ['zip']
 
-dockers:
-  - use: buildx
-    ids:
+dockers_v2:
+  - ids:
       - middleware
-    goos: linux
-    goarch: amd64
-    image_templates:
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}-amd64"
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest-amd64"
-    build_flag_templates:
-      - "--pull"
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title=middleware"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
+    images:
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware"
+    tags:
+      - "{{ .Version }}"
+      - "latest"
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "middleware"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
     dockerfile: Dockerfile.middleware.releaser
-
-  - use: buildx
-    ids:
-      - middleware
-    goos: linux
-    goarch: arm64
-    image_templates:
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}-arm64"
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest-arm64"
-    build_flag_templates:
-      - "--pull"
-      - "--platform=linux/arm64/v8"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title=middleware"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-    dockerfile: Dockerfile.middleware.releaser
-
-docker_manifests:
-  - name_template: "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}-amd64"
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest"
-    image_templates:
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest-amd64"
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware:latest-arm64"
 
 checksum:
   name_template: "checksums.txt"
@@ -144,7 +114,7 @@ changelog:
 
 release:
   github:
-    owner: nimendra
+    owner: nmdra
     name: ERPBridge
   footer: |
     ---
