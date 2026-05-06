@@ -1,104 +1,103 @@
 package main
 
 import (
-        "context"
-        "encoding/json"
-        "fmt"
-        "log"
-        "log/slog"
-        "net/http"
-        "os"
-        "path/filepath"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
 
-        "github.com/redis/go-redis/v9"
-        "github.com/nimendra/ERPBridge/internal/cache"
-        "github.com/nimendra/ERPBridge/internal/connector"
-        "github.com/nimendra/ERPBridge/internal/logger"
-        "github.com/nimendra/ERPBridge/internal/mcp"
-        "github.com/prometheus/client_golang/prometheus/promhttp"
-        "github.com/fsnotify/fsnotify"
+	"github.com/fsnotify/fsnotify"
+	"github.com/nimendra/ERPBridge/internal/cache"
+	"github.com/nimendra/ERPBridge/internal/connector"
+	"github.com/nimendra/ERPBridge/internal/logger"
+	"github.com/nimendra/ERPBridge/internal/mcp"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
-        // Initialize Logger
-        rootLog := logger.Init()
+	// Initialize Logger
+	rootLog := logger.Init()
 
-        mcpPort := os.Getenv("MCP_PORT")
-        if mcpPort == "" {
-                mcpPort = "8080"
-        }
+	mcpPort := os.Getenv("MCP_PORT")
+	if mcpPort == "" {
+		mcpPort = "8080"
+	}
 
-        schemasDir := os.Getenv("SCHEMAS_DIR")
-        if schemasDir == "" {
-                schemasDir = "schemas"
-        }
+	schemasDir := os.Getenv("SCHEMAS_DIR")
+	if schemasDir == "" {
+		schemasDir = "schemas"
+	}
 
-        redisURL := os.Getenv("REDIS_URL")
-        embedderURL := os.Getenv("EMBEDDER_URL")
+	redisURL := os.Getenv("REDIS_URL")
+	embedderURL := os.Getenv("EMBEDDER_URL")
 
-        // In a real scenario, this should be the public URL of the server
-        baseURL := os.Getenv("BASE_URL")
-        if baseURL == "" {
-                baseURL = fmt.Sprintf("http://localhost:%s", mcpPort)
-        }
+	// In a real scenario, this should be the public URL of the server
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = fmt.Sprintf("http://localhost:%s", mcpPort)
+	}
 
-        // Initialize Cache
-        var cacheMgr *cache.Manager
-        if redisURL != "" {
-                opt, err := redis.ParseURL(redisURL)
-                if err != nil {
-                        slog.Error("failed to parse redis url", slog.String("error", err.Error()))
-                } else {
-                        rdb := redis.NewClient(opt)
-                        var embedder cache.Embedder
-                        if embedderURL != "" {
-                                embedder = cache.NewHFEmbedder(embedderURL)
-                        }
-                        cacheMgr = cache.NewManager(rdb, embedder, rootLog)
-                        if err := cacheMgr.EnsureIndex(context.Background()); err != nil {
-                                slog.Warn("failed to ensure redis index", slog.String("error", err.Error()))
-                        }
-                        slog.Info("cache initialized", slog.String("redis_url", redisURL))
-                }
-        }
+	// Initialize Cache
+	var cacheMgr *cache.Manager
+	if redisURL != "" {
+		opt, err := redis.ParseURL(redisURL)
+		if err != nil {
+			slog.Error("failed to parse redis url", slog.String("error", err.Error()))
+		} else {
+			rdb := redis.NewClient(opt)
+			var embedder cache.Embedder
+			if embedderURL != "" {
+				embedder = cache.NewHFEmbedder(embedderURL)
+			}
+			cacheMgr = cache.NewManager(rdb, embedder, rootLog)
+			if err := cacheMgr.EnsureIndex(context.Background()); err != nil {
+				slog.Warn("failed to ensure redis index", slog.String("error", err.Error()))
+			}
+			slog.Info("cache initialized", slog.String("redis_url", redisURL))
+		}
+	}
 
-        conn := connector.NewClient(rootLog)
-        server := mcp.NewServer(conn, cacheMgr, rootLog)
+	conn := connector.NewClient(rootLog)
+	server := mcp.NewServer(conn, cacheMgr, rootLog)
 
-        // Load tools from schemas directory
-        loadTools(server, schemasDir)
+	// Load tools from schemas directory
+	loadTools(server, schemasDir)
 
-        // Start Hot Reloading
-        go watchSchemas(server, schemasDir)
+	// Start Hot Reloading
+	go watchSchemas(server, schemasDir)
 
-        mux := http.NewServeMux()
-        server.ServeHTTP(mux, baseURL)
+	mux := http.NewServeMux()
+	server.ServeHTTP(mux, baseURL)
 
-        // Metrics endpoint
-        mux.Handle("/metrics", promhttp.Handler())
+	// Metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
 
-        slog.Info("Bridge Middleware listening", 
-                slog.String("port", mcpPort),
-                slog.String("mcp_sse", baseURL+"/mcp/sse"),
-        )
-        log.Fatal(http.ListenAndServe(":"+mcpPort, mux))
+	slog.Info("Bridge Middleware listening",
+		slog.String("port", mcpPort),
+		slog.String("mcp_sse", baseURL+"/mcp/sse"),
+	)
+	log.Fatal(http.ListenAndServe(":"+mcpPort, mux))
 }
 
-
 func loadTools(s *mcp.Server, dir string) {
-        slog.Info("loading tools", slog.String("directory", dir))
-        err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-                if err != nil {
-                        return err
-                }
-                if !info.IsDir() && filepath.Ext(path) == ".json" {
-                        reloadTool(s, path)
-                }
-                return nil
-        })
-        if err != nil {
-                log.Printf("error walking schemas directory: %v", err)
-        }
+	slog.Info("loading tools", slog.String("directory", dir))
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && filepath.Ext(path) == ".json" {
+			reloadTool(s, path)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Printf("error walking schemas directory: %v", err)
+	}
 }
 
 func watchSchemas(s *mcp.Server, dir string) {
@@ -107,7 +106,7 @@ func watchSchemas(s *mcp.Server, dir string) {
 		slog.Error("failed to create watcher", slog.String("error", err.Error()))
 		return
 	}
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 
 	if err := watcher.Add(dir); err != nil {
 		slog.Error("failed to watch directory", slog.String("error", err.Error()), slog.String("directory", dir))
@@ -150,4 +149,3 @@ func reloadTool(s *mcp.Server, path string) {
 	}
 	s.RegisterTool(&tool)
 }
-
