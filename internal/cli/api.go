@@ -82,8 +82,8 @@ func (r *APIRegistrationResponse) RenderTable(w io.Writer) error {
 	fmt.Fprintf(w, "Method          %s\n", r.API.Method)
 	fmt.Fprintf(w, "URL             %s\n", r.API.URL)
 	fmt.Fprintf(w, "Status          %s\n", r.API.Status)
-	fmt.Fprintln(w, "\nNext: run \"bridgectl tool generate --api "+r.API.Name+"\" to create an MCP tool schema.")
-	return nil
+	_, err := fmt.Fprintln(w, "\nNext: run \"bridgectl tool generate --api "+r.API.Name+"\" to create an MCP tool schema.")
+	return err
 }
 
 var apiListCmd = &cobra.Command{
@@ -110,9 +110,9 @@ type APIListResponse struct {
 
 func (r *APIListResponse) RenderTable(w io.Writer) error {
 	tw := output.NewTabWriter(w)
-	fmt.Fprintln(tw, "ID\tNAME\tMODULE\tMETHOD\tSTATUS")
+	_, _ = fmt.Fprintln(tw, "ID\tNAME\tMODULE\tMETHOD\tSTATUS")
 	for _, api := range r.Items {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", api.ID, api.Name, api.Module, api.Method, api.Status)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", api.ID, api.Name, api.Module, api.Method, api.Status)
 	}
 	return tw.Flush()
 }
@@ -124,7 +124,7 @@ var apiTestCmd = &cobra.Command{
 This command performs a real HTTP request using the configured method, 
 URL, and authentication headers, and displays the response status and latency.`,
 	Example: `  bridgectl api test get-invoices`,
-	Args:  cobra.ExactArgs(1),
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		reg, err := idp.NewRegistry("", RootLog)
 		if err != nil {
@@ -134,8 +134,8 @@ URL, and authentication headers, and displays the response status and latency.`,
 		name := args[0]
 		api, ok := reg.Get(name)
 		if !ok {
-			return NewError(CodeNotFound, "API_NOT_FOUND", 
-				fmt.Sprintf("API %s not found in local registry", name), 
+			return NewError(CodeNotFound, "API_NOT_FOUND",
+				fmt.Sprintf("API %s not found in local registry", name),
 				"Run 'bridgectl api list' to see available APIs.")
 		}
 
@@ -161,7 +161,7 @@ URL, and authentication headers, and displays the response status and latency.`,
 		defer resp.Body.Close()
 
 		var body any
-		json.NewDecoder(resp.Body).Decode(&body)
+		_ = json.NewDecoder(resp.Body).Decode(&body)
 
 		testResp := &APITestResponse{
 			API:       api,
@@ -215,8 +215,8 @@ func init() {
 	apiRegisterCmd.Flags().String("auth-header", "X-API-Key", "Auth header")
 	apiRegisterCmd.Flags().String("auth-key", "", "Auth key")
 
-	apiRegisterCmd.MarkFlagRequired("name")
-	apiRegisterCmd.MarkFlagRequired("url")
-	apiRegisterCmd.MarkFlagRequired("module")
-	apiRegisterCmd.MarkFlagRequired("description")
+	_ = apiRegisterCmd.MarkFlagRequired("name")
+	_ = apiRegisterCmd.MarkFlagRequired("url")
+	_ = apiRegisterCmd.MarkFlagRequired("module")
+	_ = apiRegisterCmd.MarkFlagRequired("description")
 }
