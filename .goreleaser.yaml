@@ -114,7 +114,7 @@ changelog:
 
 release:
   github:
-    owner: nimendra
+    owner: nmdra
     name: ERPBridge
   footer: |
     ---
