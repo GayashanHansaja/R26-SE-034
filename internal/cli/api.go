@@ -76,12 +76,12 @@ type APIRegistrationResponse struct {
 }
 
 func (r *APIRegistrationResponse) RenderTable(w io.Writer) error {
-	fmt.Fprintf(w, "Registered API  %s\n", r.API.Name)
-	fmt.Fprintf(w, "ID              %s\n", r.API.ID)
-	fmt.Fprintf(w, "Module          %s\n", r.API.Module)
-	fmt.Fprintf(w, "Method          %s\n", r.API.Method)
-	fmt.Fprintf(w, "URL             %s\n", r.API.URL)
-	fmt.Fprintf(w, "Status          %s\n", r.API.Status)
+	_, _ = fmt.Fprintf(w, "Registered API  %s\n", r.API.Name)
+	_, _ = fmt.Fprintf(w, "ID              %s\n", r.API.ID)
+	_, _ = fmt.Fprintf(w, "Module          %s\n", r.API.Module)
+	_, _ = fmt.Fprintf(w, "Method          %s\n", r.API.Method)
+	_, _ = fmt.Fprintf(w, "URL             %s\n", r.API.URL)
+	_, _ = fmt.Fprintf(w, "Status          %s\n", r.API.Status)
 	_, err := fmt.Fprintln(w, "\nNext: run \"bridgectl tool generate --api "+r.API.Name+"\" to create an MCP tool schema.")
 	return err
 }
@@ -186,16 +186,16 @@ type APITestResponse struct {
 }
 
 func (r *APITestResponse) RenderTable(w io.Writer) error {
-	fmt.Fprintf(w, "Testing  %s\n", r.API.Name)
-	fmt.Fprintf(w, "URL      %s %s\n", r.API.Method, r.API.URL)
-	fmt.Fprintf(w, "Auth     %s (%s)\n\n", r.API.AuthType, r.API.AuthHeader)
-	fmt.Fprintf(w, "Status   %s\n", r.Status)
-	fmt.Fprintf(w, "Latency  %v\n\n", r.Latency)
+	_, _ = fmt.Fprintf(w, "Testing  %s\n", r.API.Name)
+	_, _ = fmt.Fprintf(w, "URL      %s %s\n", r.API.Method, r.API.URL)
+	_, _ = fmt.Fprintf(w, "Auth     %s (%s)\n\n", r.API.AuthType, r.API.AuthHeader)
+	_, _ = fmt.Fprintf(w, "Status   %s\n", r.Status)
+	_, _ = fmt.Fprintf(w, "Latency  %v\n\n", r.Latency)
 
 	if r.IsSuccess {
-		fmt.Fprintln(w, "✓ API is reachable and auth is valid.")
+		_, _ = fmt.Fprintln(w, "✓ API is reachable and auth is valid.")
 	} else {
-		fmt.Fprintln(w, "✗ API test failed")
+		_, _ = fmt.Fprintln(w, "✗ API test failed")
 	}
 	return nil
 }
