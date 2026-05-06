@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -47,7 +46,6 @@ func GetRecentLogs() [][]byte {
 
 type broadcastHandler struct {
 	slog.Handler
-	mw io.Writer
 }
 
 func (h *broadcastHandler) Handle(ctx context.Context, r slog.Record) error {
@@ -57,12 +55,12 @@ func (h *broadcastHandler) Handle(ctx context.Context, r slog.Record) error {
 	// Broadcast & Buffer
 	listenersMu.Lock()
 	defer listenersMu.Unlock()
-	
+
 	var buf strings.Builder
 	jsonHandler := slog.NewJSONHandler(&buf, nil)
 	if err := jsonHandler.Handle(ctx, r); err == nil {
 		msg := []byte(buf.String())
-		
+
 		// Add to buffer
 		logBuffer = append(logBuffer, msg)
 		if len(logBuffer) > bufferSize {
@@ -86,12 +84,12 @@ func (h *broadcastHandler) Handle(ctx context.Context, r slog.Record) error {
 func Init() *slog.Logger {
 	level := parseLevel(os.Getenv("LOG_LEVEL"))
 	handler := buildHandler(level)
-	
+
 	// Wrap with broadcast handler
 	bHandler := &broadcastHandler{
 		Handler: handler,
 	}
-	
+
 	logger := slog.New(bHandler)
 	slog.SetDefault(logger)
 	return logger
