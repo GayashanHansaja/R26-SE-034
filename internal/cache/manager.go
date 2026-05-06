@@ -8,6 +8,7 @@ import (
     "fmt"
     "log/slog"
     "sort"
+    "strings"
     "time"
 
     "github.com/redis/go-redis/v9"
@@ -169,4 +170,46 @@ func roleScope(role string, isReadOnly bool) string {
         return "anonymous"
     }
     return role
+}
+
+type Stats struct {
+	ExactKeys    int64 `json:"exactKeys"`
+	SemanticKeys int64 `json:"semanticKeys"`
+	RedisMemory  string `json:"redisMemory"`
+}
+
+func (m *Manager) Stats(ctx context.Context) (Stats, error) {
+	exact, _ := m.rdb.Do(ctx, "DBSIZE").Int64() // Simplified, includes everything
+	
+	// Get semantic index info
+	semInfo, _ := m.rdb.Do(ctx, "FT.INFO", "idx:semantic").Result()
+	var semanticCount int64
+	if semInfo != nil {
+		if data, ok := semInfo.([]any); ok {
+			for i := 0; i < len(data); i += 2 {
+				if key, ok := data[i].(string); ok && key == "num_docs" {
+					if val, ok := data[i+1].(string); ok {
+						fmt.Sscanf(val, "%d", &semanticCount)
+					} else if val, ok := data[i+1].(int64); ok {
+						semanticCount = val
+					}
+				}
+			}
+		}
+	}
+
+	info, _ := m.rdb.Info(ctx, "memory").Result()
+	var memory string
+	for _, line := range sort.StringSlice(strings.Split(info, "\n")) {
+		if strings.HasPrefix(line, "used_memory_human:") {
+			memory = strings.TrimPrefix(line, "used_memory_human:")
+			break
+		}
+	}
+
+	return Stats{
+		ExactKeys:    exact - semanticCount, // Approximate
+		SemanticKeys: semanticCount,
+		RedisMemory:  memory,
+	}, nil
 }
