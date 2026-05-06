@@ -83,7 +83,7 @@ func (g *Generator) GenerateFromOpenAPI(api API, openapiURL string) ([]*mcp.Tool
 			if httpErr != nil {
 				return nil, fmt.Errorf("failed to fetch openapi spec: %w", httpErr)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			doc, err = loader.LoadFromIoReader(resp.Body)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse fetched openapi spec: %w", err)
