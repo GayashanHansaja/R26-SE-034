@@ -31,7 +31,8 @@ go.work.sum
 # .idea/
 # .vscode/
 
-bridgectl
-erpbridge-server
+/bridgectl
+/erpbridge-server
+/middleware
 schemas/
 dist/
