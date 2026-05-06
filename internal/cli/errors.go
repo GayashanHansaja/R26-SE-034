@@ -6,17 +6,17 @@ import (
 
 // Exit codes for agent compatibility
 const (
-	CodeSuccess    = 0
-	CodeGeneralErr = 1
-	CodeBadArgs    = 2
-	CodeNotFound   = 3
-	CodeAuthFail   = 4
-	CodeConflict   = 5
-	CodeTimeout    = 6
+	CodeSuccess     = 0
+	CodeGeneralErr  = 1
+	CodeBadArgs     = 2
+	CodeNotFound    = 3
+	CodeAuthFail    = 4
+	CodeConflict    = 5
+	CodeTimeout     = 6
 	CodePrecondFail = 7
 )
 
-// AgentActionableError represents an error that can be programmatically 
+// AgentActionableError represents an error that can be programmatically
 // handled by an AI agent or other automated system.
 type AgentActionableError struct {
 	ErrorCode  string `json:"error"`
