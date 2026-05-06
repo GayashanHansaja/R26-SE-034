@@ -69,8 +69,8 @@ func (r *RawResponse) RenderTable(w io.Writer) error {
 	}
 	// Fallback to JSON if target doesn't implement TableRenderer
 	b, _ := json.MarshalIndent(r.target, "", "  ")
-	fmt.Fprintln(w, string(b))
-	return nil
+	_, err := fmt.Fprintln(w, string(b))
+	return err
 }
 
 func (r *RawResponse) MarshalJSON() ([]byte, error) {
