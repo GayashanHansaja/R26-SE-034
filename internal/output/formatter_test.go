@@ -14,7 +14,7 @@ type MockData struct {
 
 func (m *MockData) RenderTable(w io.Writer) error {
 	tw := NewTabWriter(w)
-	fmt.Fprintf(tw, "NAME\n%s\n", m.Name)
+	_, _ = fmt.Fprintf(tw, "NAME\n%s\n", m.Name)
 	return tw.Flush()
 }
 
