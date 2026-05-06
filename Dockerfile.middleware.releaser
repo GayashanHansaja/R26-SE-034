@@ -1,6 +1,0 @@
-FROM alpine:latest
-ARG TARGETPLATFORM
-WORKDIR /app
-COPY $TARGETPLATFORM/middleware .
-EXPOSE 8080
-ENTRYPOINT ["./middleware"]

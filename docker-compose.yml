@@ -38,10 +38,10 @@ services:
       interval: 10s
       retries: 3
 
-  middleware:
+  erpbridge-server:
     build:
       context: .
-      dockerfile: Dockerfile.middleware
+      dockerfile: Dockerfile.server
     ports:
       - "8080:8080"
     environment:

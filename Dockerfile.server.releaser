@@ -1,0 +1,6 @@
+FROM alpine:latest
+ARG TARGETPLATFORM
+WORKDIR /app
+COPY $TARGETPLATFORM/erpbridge-server .
+EXPOSE 8080
+ENTRYPOINT ["./erpbridge-server"]

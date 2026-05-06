@@ -8,9 +8,9 @@ before:
     - go mod tidy
 
 builds:
-  - id: middleware
-    main: ./services/middleware/main.go
-    binary: middleware
+  - id: erpbridge-server
+    main: ./services/erpbridge-server/main.go
+    binary: erpbridge-server
     env:
       - CGO_ENABLED=0
     goos:
@@ -39,11 +39,11 @@ builds:
       - -s -w -X main.version={{.Version}}
 
 archives:
-  - id: middleware
-    ids: [middleware]
+  - id: erpbridge-server
+    ids: [erpbridge-server]
     formats: ['tar.gz']
     name_template: >-
-      middleware_
+      erpbridge-server_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
@@ -72,7 +72,7 @@ archives:
         formats: ['zip']
 
   - id: combined
-    ids: [middleware, bridgectl]
+    ids: [erpbridge-server, bridgectl]
     formats: ['tar.gz']
     name_template: >-
       erpbridge-full_
@@ -89,18 +89,18 @@ archives:
 
 dockers_v2:
   - ids:
-      - middleware
+      - erpbridge-server
     images:
-      - "ghcr.io/{{ .Env.REPO_OWNER }}/middleware"
+      - "ghcr.io/{{ .Env.REPO_OWNER }}/erpbridge-server"
     tags:
       - "{{ .Version }}"
       - "latest"
     labels:
       "org.opencontainers.image.created": "{{.Date}}"
-      "org.opencontainers.image.title": "middleware"
+      "org.opencontainers.image.title": "erpbridge-server"
       "org.opencontainers.image.revision": "{{.FullCommit}}"
       "org.opencontainers.image.version": "{{.Version}}"
-    dockerfile: Dockerfile.middleware.releaser
+    dockerfile: Dockerfile.server.releaser
 
 checksum:
   name_template: "checksums.txt"
