@@ -13,10 +13,10 @@ func TestGenerator_GenerateFromOpenAPI(t *testing.T) {
 	log := logger.Init()
 	tempDir, err := os.MkdirTemp("", "schemas")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	gen := NewGenerator(tempDir, log)
-	
+
 	// Create a dummy OpenAPI file
 	spec := `
 openapi: 3.0.0
@@ -65,7 +65,7 @@ func TestGenerator_Generate(t *testing.T) {
 	log := logger.Init()
 	tempDir, err := os.MkdirTemp("", "schemas")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	gen := NewGenerator(tempDir, log)
 
