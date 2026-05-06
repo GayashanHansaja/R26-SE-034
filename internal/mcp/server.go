@@ -144,7 +144,7 @@ func (s *Server) RegisterTool(t *Tool) {
 	}
 
 	// Create mcp-go tool using RawInputSchema
-	mcpTool := mcp.NewTool(t.Name, 
+	mcpTool := mcp.NewTool(t.Name,
 		mcp.WithDescription(t.Description),
 		mcp.WithRawInputSchema(json.RawMessage(schemaJSON)),
 	)
@@ -270,7 +270,7 @@ func (s *Server) ServeHTTP(mux *http.ServeMux, baseURL string) {
 
 	mux.HandleFunc("/mcp/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 }
 
@@ -327,7 +327,7 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 			)
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-Cache-Hit", entry.HitType)
-			json.NewEncoder(w).Encode(ToolResult{Result: entry.Response})
+			_ = json.NewEncoder(w).Encode(ToolResult{Result: entry.Response})
 			return
 		}
 	}
@@ -336,7 +336,7 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		reqLog.Error("tool call failed (direct)", slog.String("error", err.Error()), slog.Int("latency_ms", int(time.Since(start).Milliseconds())))
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -362,7 +362,7 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 func (s *Server) handleCacheFlush(w http.ResponseWriter, r *http.Request) {
@@ -395,7 +395,7 @@ func (s *Server) handleCacheFlush(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"deleted": count,
 		"status":  "ok",
 	})
@@ -414,7 +414,7 @@ func (s *Server) handleCacheStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"apiVersion": "v1",
 		"kind":       "CacheStats",
 		"status":     "active",
@@ -444,7 +444,7 @@ func (s *Server) handleLogStream(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			fmt.Fprintf(w, "data: %s\n\n", string(msg))
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", string(msg))
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
@@ -457,14 +457,14 @@ func (s *Server) handleLogStream(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLogRecent(w http.ResponseWriter, r *http.Request) {
 	logs := logger.GetRecentLogs()
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	// Logs are already JSON strings
-	fmt.Fprintf(w, "[")
+	_, _ = fmt.Fprintf(w, "[")
 	for i, l := range logs {
 		if i > 0 {
-			fmt.Fprintf(w, ",")
+			_, _ = fmt.Fprintf(w, ",")
 		}
-		fmt.Fprintf(w, "%s", string(l))
+		_, _ = fmt.Fprintf(w, "%s", string(l))
 	}
-	fmt.Fprintf(w, "]")
+	_, _ = fmt.Fprintf(w, "]")
 }
