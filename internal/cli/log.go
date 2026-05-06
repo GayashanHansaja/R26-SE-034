@@ -44,7 +44,7 @@ frequency analysis of log levels and tool invocations.`,
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var logs []map[string]any
 		if err := json.NewDecoder(resp.Body).Decode(&logs); err != nil {
@@ -99,7 +99,7 @@ log level, or a specific request ID.`,
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("server error: %s", resp.Status)
@@ -119,7 +119,7 @@ log level, or a specific request ID.`,
 				msg := strings.TrimPrefix(line, "data: ")
 				msg = strings.TrimSpace(msg)
 
-				// For simplicity, we'll just print it. 
+				// For simplicity, we'll just print it.
 				// In a real app, we'd parse JSON and filter based on flags.
 				if shouldPrint(msg) {
 					fmt.Println(msg)

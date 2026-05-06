@@ -189,7 +189,7 @@ how an AI agent would experience the tool.`,
 		if err != nil {
 			return fmt.Errorf("MCP server call failed: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var toolResult mcp.ToolResult
 		if err := json.NewDecoder(resp.Body).Decode(&toolResult); err != nil {
