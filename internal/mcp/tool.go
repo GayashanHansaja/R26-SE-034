@@ -115,7 +115,7 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 	if err != nil {
 		return nil, fmt.Errorf("erp call failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var resultData any
 	if err := json.NewDecoder(resp.Body).Decode(&resultData); err != nil {
@@ -148,7 +148,7 @@ func validateResponse(data any, schema any) error {
 
 	c := jsonschema.NewCompiler()
 	// Kin-openapi generates swagger/openapi schemas which might need leniency.
-	
+
 	if err := c.AddResource("schema.json", bytes.NewReader(schemaBytes)); err != nil {
 		return fmt.Errorf("add resource: %w", err)
 	}
