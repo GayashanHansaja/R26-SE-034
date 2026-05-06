@@ -14,11 +14,16 @@ import (
 var contextCmd = &cobra.Command{
 	Use:   "context",
 	Short: "Manage bridgectl contexts",
+	Long: `The context command allows you to switch between different ERPBridge 
+environments (e.g., local, staging, production). Each context defines the 
+middleware server URL, default ERP base URL, and authentication credentials.`,
 }
 
 var contextListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List saved contexts",
+	Long:  `Display a table of all configured contexts from your ~/.bridgectl/config.yaml.`,
+	Example: `  bridgectl context list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var items []ContextItem
 		for name := range cfg.Contexts {
@@ -60,6 +65,8 @@ func (r *ContextListResponse) RenderTable(w io.Writer) error {
 var contextSetCmd = &cobra.Command{
 	Use:   "set [name]",
 	Short: "Switch active context",
+	Long:  `Update the active context in your configuration file. All subsequent commands will use this context unless overridden by the --context flag.`,
+	Example: `  bridgectl context set production`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]

@@ -15,6 +15,9 @@ import (
 var logCmd = &cobra.Command{
 	Use:   "log",
 	Short: "Manage and view logs",
+	Long: `The log command provides utilities to monitor the middleware's execution. 
+You can stream live logs as they happen or view a summary of recent events 
+to identify trends and frequent errors.`,
 }
 
 var (
@@ -27,6 +30,9 @@ var (
 var logStatsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Summarise log events from the middleware",
+	Long: `Fetch the most recent logs from the middleware and perform a basic 
+frequency analysis of log levels and tool invocations.`,
+	Example: `  bridgectl log stats`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {
@@ -75,6 +81,13 @@ var logStatsCmd = &cobra.Command{
 var logTailCmd = &cobra.Command{
 	Use:   "tail",
 	Short: "Stream live logs from the middleware",
+	Long: `Connect to the middleware's SSE log stream and display structured 
+log messages in real-time. You can filter the stream by component, tool, 
+log level, or a specific request ID.`,
+	Example: `  bridgectl log tail
+  bridgectl log tail --level error
+  bridgectl log tail --tool finance.get-invoices
+  bridgectl log tail --component mcp`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {

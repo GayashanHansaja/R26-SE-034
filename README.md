@@ -64,6 +64,7 @@ The Middleware service is an MCP Server implemented in Go. It:
 
 #### bridgectl
 The developer CLI for managing the ecosystem:
+- **`bridgectl doc`**: Generate comprehensive Markdown documentation for the CLI.
 - `bridgectl tool validate`: Pre-validate schemas or OpenAPI specs.
 - `bridgectl tool list/invoke`: List and test MCP tools.
 - `bridgectl api`: Explore raw ERP endpoints.
@@ -80,16 +81,22 @@ To protect against legacy system failures, the connector uses:
 - **Cache Dashboard**: Real-time stats on exact vs. semantic hits are exposed via `bridgectl cache stats` or `/api/cache/stats`.
 - **Structured Logging**: All requests carry a unique `request_id` for end-to-end tracing.
 
-### 5. Semantic Caching
+### 5. CLI Documentation
+Comprehensive documentation for all `bridgectl` commands is available in the [docs/cli](./docs/cli) directory. You can regenerate this documentation at any time by running:
+```bash
+go run tools/bridgectl/main.go doc
+```
+
+### 6. Semantic Caching
 ERPBridge features a two-layer caching strategy:
 1.  **Exact Match**: Keyed by a hash of tool arguments.
 2.  **Semantic Fallback**: Uses vector embeddings to find similar previous requests based on a similarity threshold (default: 0.95).
 
-### 6. AI Agent Integration
+### 7. AI Agent Integration
 AI agents connect via SSE at `http://localhost:8080/mcp/sse`.
 See [AGENTS.md](./AGENTS.md) for detailed integration patterns.
 
-### 7. Development Flow
+### 8. Development Flow
 1.  **Schema Hot-Reload**: Modify any JSON schema in `schemas/`; the middleware reloads it instantly.
 2.  **Validation**: Use `bridgectl tool validate schemas/finance/invoices.json` before deploying.
 

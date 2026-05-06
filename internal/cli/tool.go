@@ -19,11 +19,21 @@ import (
 var toolCmd = &cobra.Command{
 	Use:   "tool",
 	Short: "Manage MCP tool schemas",
+	Long: `The tool command provides utilities to bridge the gap between raw ERP APIs 
+and the Model Context Protocol (MCP). It includes generators to transform 
+API definitions or OpenAPI specs into MCP Tool schemas, and validators to 
+ensure those schemas are ready for AI agent consumption.`,
 }
 
 var toolGenerateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Auto-generate an MCP tool schema from a registered API or OpenAPI spec",
+	Long: `Create a protocol-compliant MCP tool definition automatically. 
+You can generate a tool from an API already registered in bridgectl, 
+or point directly to an OpenAPI YAML/JSON file to batch-generate 
+definitions for all operations.`,
+	Example: `  bridgectl tool generate --api get-invoices
+  bridgectl tool generate --api my-erp --openapi ./specs/erp.yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		apiName, _ := cmd.Flags().GetString("api")
 		openapiURL, _ := cmd.Flags().GetString("openapi")
@@ -81,6 +91,8 @@ func (r *ToolGenerateResponse) RenderTable(w io.Writer) error {
 var toolListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all generated MCP tool schemas",
+	Long:  `Scan the schemas/ directory and display all available MCP tool definitions.`,
+	Example: `  bridgectl tool list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		schemasDir := "schemas"
 		var items []ToolListItem
@@ -142,6 +154,11 @@ func (r *ToolListResponse) RenderTable(w io.Writer) error {
 var toolInvokeCmd = &cobra.Command{
 	Use:   "invoke [name] [arguments]",
 	Short: "Invoke an MCP tool directly",
+	Long: `Perform a direct invocation of an MCP tool through the middleware's 
+internal API. This bypasses the full MCP transport but follows the same 
+logic (including caching and validation), making it ideal for testing 
+how an AI agent would experience the tool.`,
+	Example: `  bridgectl tool invoke finance.get-invoices '{"page": 1}'`,
 	Args:  cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
@@ -189,6 +206,11 @@ var toolInvokeCmd = &cobra.Command{
 var toolValidateCmd = &cobra.Command{
 	Use:   "validate [file]",
 	Short: "Validate an MCP tool schema (JSON) or an OpenAPI spec (YAML)",
+	Long: `Pre-flight check for schema files. This command validates that 
+a JSON schema follows the MCP tool structure or that an OpenAPI 
+specification can be correctly parsed and transformed by ERPBridge.`,
+	Example: `  bridgectl tool validate schemas/finance/get-invoices.json
+  bridgectl tool validate ./specs/legacy-erp.yaml`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path := args[0]

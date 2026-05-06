@@ -23,8 +23,16 @@ var (
 )
 
 var RootCmd = &cobra.Command{
-	Use:   "bridgectl",
-	Short: "Middleware for Bridging Legacy ERP and Agentic AI",
+	Use:     "bridgectl",
+	Short:   "Middleware for Bridging Legacy ERP and Agentic AI",
+	Version: "1.0.0",
+	Long: `bridgectl is the developer CLI for the ERPBridge ecosystem. 
+It provides tools to manage environments, register and test ERP APIs, 
+generate and validate MCP tool schemas, and monitor the middleware's 
+health through real-time log streaming and cache analytics.
+
+The CLI interacts with the ERPBridge middleware via a REST API 
+and supports multiple output formats including Table, JSON, and YAML.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Initialize Logger for CLI
 		if verbose {

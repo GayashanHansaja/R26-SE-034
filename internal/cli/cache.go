@@ -14,11 +14,17 @@ import (
 var cacheCmd = &cobra.Command{
 	Use:   "cache",
 	Short: "Manage semantic cache",
+	Long: `The cache command provides tools to monitor and manage the middleware's 
+two-layer (Exact + Semantic) caching system. You can view real-time statistics 
+and manually flush entries by tool, module, or for the entire system.`,
 }
 
 var cacheStatsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Show cache hit/miss rates and memory usage",
+	Long: `Display high-level statistics for the semantic cache, 
+including total key counts, memory usage in Redis, and hit/miss trends.`,
+	Example: `  bridgectl cache stats`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {
@@ -48,6 +54,12 @@ var (
 var cacheFlushCmd = &cobra.Command{
 	Use:   "flush [tool]",
 	Short: "Delete cache entries",
+	Long: `Manually invalidate cache entries stored in Redis. 
+You can target a specific tool by name, an entire module using the --module flag, 
+or clear the entire cache with --all.`,
+	Example: `  bridgectl cache flush finance.get-invoices
+  bridgectl cache flush --module hr
+  bridgectl cache flush --all`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {

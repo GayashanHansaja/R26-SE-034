@@ -16,11 +16,25 @@ import (
 var apiCmd = &cobra.Command{
 	Use:   "api",
 	Short: "Manage ERP API endpoints",
+	Long: `The api command allows you to manage the inventory of ERP API endpoints. 
+You can register new endpoints, list existing ones, and test connectivity 
+and authentication to ensure the middleware can correctly proxy requests to the legacy ERP.`,
 }
 
 var apiRegisterCmd = &cobra.Command{
 	Use:   "register",
 	Short: "Register a new ERP API endpoint",
+	Long: `Register an ERP API endpoint in the local registry. This step is usually 
+the first part of the workflow, defining how the middleware connects to the ERP. 
+Once registered, you can generate an MCP tool schema from this API definition.`,
+	Example: `  bridgectl api register \
+    --name get-invoices \
+    --url "http://erp.local/api/v1/invoices" \
+    --method GET \
+    --module finance \
+    --description "Fetch all invoices" \
+    --auth-type api-key \
+    --auth-key "secret-abc-123"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		reg, err := idp.NewRegistry("", RootLog)
 		if err != nil {
@@ -75,6 +89,9 @@ func (r *APIRegistrationResponse) RenderTable(w io.Writer) error {
 var apiListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all registered APIs",
+	Long:  `Display a table of all ERP API endpoints currently registered in the local registry.`,
+	Example: `  bridgectl api list
+  bridgectl api list -o json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		reg, err := idp.NewRegistry("", RootLog)
 		if err != nil {
@@ -103,6 +120,10 @@ func (r *APIListResponse) RenderTable(w io.Writer) error {
 var apiTestCmd = &cobra.Command{
 	Use:   "test [name]",
 	Short: "Send a test request to a registered API",
+	Long: `Verify connectivity to a registered ERP API endpoint. 
+This command performs a real HTTP request using the configured method, 
+URL, and authentication headers, and displays the response status and latency.`,
+	Example: `  bridgectl api test get-invoices`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		reg, err := idp.NewRegistry("", RootLog)
