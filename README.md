@@ -13,8 +13,9 @@ Middleware for bridging legacy ERP systems with Agentic AI using the Model Conte
 - **Go**: 1.26.2
 - **Python**: 3.11+
 - **MCP Library**: [mark3labs/mcp-go](https://github.com/mark3labs/mcp-go)
-- **YAML Library**: [goccy/go-yaml](https://github.com/goccy/go-yaml)
 - **Database**: Redis (for Semantic Caching)
+- **Monitoring**: Prometheus (Metrics)
+- **Resilience**: Sony/GoBreaker & Avast/Retry-Go
 
 ## Getting Started
 
@@ -33,9 +34,6 @@ docker compose up -d --build
 1. **Mock ERP**:
    ```bash
    cd mock-erp
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
    python main.py
    ```
 
@@ -53,64 +51,47 @@ docker compose up -d --build
 ## Complete Guide
 
 ### 1. Overview
-ERPBridge acts as a translation layer between legacy ERP systems and modern AI agents. It exposes ERP functionality as MCP Tools, allowing LLMs to interact with complex business data through a standardized interface.
+ERPBridge acts as a translation layer between legacy ERP systems and modern AI agents. It exposes ERP functionality as MCP Tools, Resources, and Prompts, allowing LLMs to interact with complex business data through a standardized interface.
 
 ### 2. Core Components
 
 #### Middleware
 The Middleware service is an MCP Server implemented in Go. It:
-- **Discovers Tools**: Maps ERP API endpoints to MCP tool definitions.
-- **Handles Requests**: Proxies tool calls from AI agents to the ERP.
-- **Manages Context**: Injects authentication and maintains session state.
-- **Semantic Caching**: Reduces ERP load by caching responses with vector similarity.
-
-#### Mock ERP
-A Python-based service providing simulated ERP modules:
-- **Finance**: Invoices, Payments, Ledger.
-- **HR**: Employee records, Payroll, Attendance.
-- **Inventory**: Stock levels, Warehouses, Shipments.
+- **Discovers Tools**: Maps ERP API endpoints to MCP definitions with **Hot Reloading** support.
+- **Resilience**: Implements **Circuit Breaking** and **Intelligent Retries** to handle ERP instability.
+- **Advanced MCP**: Supports Tools (actions), **Resources** (read-only data), and **Prompts** (workflows).
+- **Semantic Caching**: Reduces ERP load using vector similarity matching.
 
 #### bridgectl
 The developer CLI for managing the ecosystem:
-- `bridgectl context`: Switch between local, dev, and prod environments.
-- `bridgectl api`: Explore and test raw ERP API endpoints.
-- `bridgectl tool`: List and test MCP tools exposed by the middleware.
-- `bridgectl log`: Stream real-time logs from the middleware.
-- `bridgectl cache`: Manage the semantic cache (stats, flush).
+- `bridgectl tool validate`: Pre-validate schemas or OpenAPI specs.
+- `bridgectl tool list/invoke`: List and test MCP tools.
+- `bridgectl api`: Explore raw ERP endpoints.
+- `bridgectl log`: Stream real-time middleware logs.
+- `bridgectl cache`: Manage and monitor semantic cache performance.
 
-### 3. Semantic Caching
-ERPBridge features a unique two-layer caching strategy powered by Redis:
-1.  **Exact Match**: Keyed by a hash of tool arguments for 100% precision.
-2.  **Semantic Fallback**: Uses vector embeddings to find "similar" previous requests. If an agent asks for "Latest invoices for Q1" and later asks "Most recent Q1 billing data", the middleware can return the cached result if the similarity score exceeds the configured threshold.
+### 3. Resilience & Reliability
+To protect against legacy system failures, the connector uses:
+- **Circuit Breaker**: Automatically trips (opens) if the ERP failure rate exceeds 60%, preventing cascading failures.
+- **Exponential Backoff**: Automatically retries transient errors (5xx, 429) up to 3 times with increasing delays.
 
-**Configuration**:
-```yaml
-cache:
-  enabled: true
-  ttlSeconds: 3600
-  semanticThreshold: 0.95
-  isReadOnly: false # Role-isolated caching
-```
+### 4. Observability
+- **Prometheus Metrics**: High-resolution metrics for latency, request counts, and error rates are available at `:8080/metrics`.
+- **Cache Dashboard**: Real-time stats on exact vs. semantic hits are exposed via `bridgectl cache stats` or `/api/cache/stats`.
+- **Structured Logging**: All requests carry a unique `request_id` for end-to-end tracing.
 
-### 4. Configuration
-`bridgectl` and the Middleware use a shared configuration model. By default, it looks for `~/.bridgectl/config.yaml`.
+### 5. Semantic Caching
+ERPBridge features a two-layer caching strategy:
+1.  **Exact Match**: Keyed by a hash of tool arguments.
+2.  **Semantic Fallback**: Uses vector embeddings to find similar previous requests based on a similarity threshold (default: 0.95).
 
-**Environment Variables**:
-- `BRIDGE_SERVER`: Middleware URL.
-- `BRIDGE_ERP_BASE`: Backend ERP URL.
-- `BRIDGE_API_KEY`: API Key for ERP authentication.
-
-### 5. AI Agent Integration
-AI agents can connect to the middleware via SSE at `http://localhost:8080/mcp/sse`.
-The middleware provides a `listTools` capability that agents use to discover available ERP operations.
-
+### 6. AI Agent Integration
+AI agents connect via SSE at `http://localhost:8080/mcp/sse`.
 See [AGENTS.md](./AGENTS.md) for detailed integration patterns.
 
-### 6. Development Flow
-To add a new ERP capability:
-1.  **Mock ERP**: Add a new route in `mock-erp/routers/`.
-2.  **Middleware**: Update the tool registry to include the new endpoint.
-3.  **Verification**: Use `bridgectl tool list` and `bridgectl tool call` to verify.
+### 7. Development Flow
+1.  **Schema Hot-Reload**: Modify any JSON schema in `schemas/`; the middleware reloads it instantly.
+2.  **Validation**: Use `bridgectl tool validate schemas/finance/invoices.json` before deploying.
 
 ## License
 MIT
