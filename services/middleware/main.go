@@ -19,9 +19,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+var version = "dev"
+
 func main() {
 	// Initialize Logger
 	rootLog := logger.Init()
+
+	slog.Info("Starting ERPBridge Middleware", slog.String("version", version))
 
 	mcpPort := os.Getenv("MCP_PORT")
 	if mcpPort == "" {

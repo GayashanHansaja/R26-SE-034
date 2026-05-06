@@ -18,6 +18,8 @@ var (
 	ctxOverride  string
 	verbose      bool
 
+	Version = "dev"
+
 	cfg       *config.Config
 	formatter *output.Formatter
 	RootLog   *slog.Logger
@@ -26,7 +28,7 @@ var (
 var RootCmd = &cobra.Command{
 	Use:           "bridgectl",
 	Short:         "Middleware for Bridging Legacy ERP and Agentic AI",
-	Version:       "1.0.0",
+	Version:       Version,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Long: `bridgectl is the developer CLI for the ERPBridge ecosystem. 

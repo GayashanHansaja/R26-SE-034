@@ -5,7 +5,7 @@ pre-commit:
   commands:
     fmt:
       glob: "*.go"
-      run: go fmt {staged_files}
+      run: gofmt -w {staged_files}
       stage_fixed: true # re-stage files reformatted by go fmt
     # lint:
     #   glob: "*.go"
