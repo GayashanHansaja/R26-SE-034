@@ -129,7 +129,7 @@ func (c *Client) Call(ctx context.Context, ep EndpointConfig, queryParams url.Va
 
 				if resp.StatusCode == http.StatusTooManyRequests ||
 					resp.StatusCode >= 500 {
-					resp.Body.Close()
+					_ = resp.Body.Close()
 					return fmt.Errorf("transient erp error: %d", resp.StatusCode)
 				}
 
