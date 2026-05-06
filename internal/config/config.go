@@ -9,7 +9,7 @@ import (
 )
 
 type AuthConfig struct {
-	Type     string `yaml:"type"`      // api-key | basic | bearer
+	Type     string `yaml:"type"` // api-key | basic | bearer
 	Header   string `yaml:"header"`
 	Key      string `yaml:"key"`
 	Token    string `yaml:"token"`
