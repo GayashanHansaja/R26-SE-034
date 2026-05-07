@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
+	mcp_server "github.com/mark3labs/mcp-go/server"
 	"github.com/nimendra/ERPBridge/internal/cache"
 	"github.com/nimendra/ERPBridge/internal/connector"
 	"github.com/nimendra/ERPBridge/internal/logger"
@@ -22,10 +24,20 @@ import (
 var version = "dev"
 
 func main() {
+	stdioFlag := flag.Bool("stdio", false, "Run in STDIO transport mode")
+	flag.Parse()
+
+	transport := os.Getenv("MCP_TRANSPORT")
+	useStdio := *stdioFlag || transport == "stdio"
+
+	if useStdio {
+		os.Setenv("LOG_TO_STDERR", "true")
+	}
+
 	// Initialize Logger
 	rootLog := logger.Init()
 
-	slog.Info("Starting ERPBridge Server", slog.String("version", version))
+	slog.Info("Starting ERPBridge Server", slog.String("version", version), slog.Bool("stdio", useStdio))
 
 	mcpPort := os.Getenv("MCP_PORT")
 	if mcpPort == "" {
@@ -74,6 +86,14 @@ func main() {
 
 	// Start Hot Reloading
 	go watchSchemas(server, schemasDir)
+
+	if useStdio {
+		slog.Info("ERPBridge Server running in STDIO mode")
+		if err := mcp_server.ServeStdio(server.MCPServer()); err != nil {
+			slog.Error("stdio server failed", slog.String("error", err.Error()))
+		}
+		return
+	}
 
 	mux := http.NewServeMux()
 	server.ServeHTTP(mux, baseURL)
