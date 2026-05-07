@@ -2,7 +2,6 @@ package logger
 
 import (
 	"log/slog"
-	"os"
 	"testing"
 )
 
@@ -93,8 +92,7 @@ func TestComponent(t *testing.T) {
 	}
 
 	// Test override via environment
-	os.Setenv("LOG_LEVEL_OVERRIDE", "debug")
-	defer os.Unsetenv("LOG_LEVEL_OVERRIDE")
+	t.Setenv("LOG_LEVEL_OVERRIDE", "debug")
 
 	compOverride := Component(root, "override")
 	if compOverride == nil {
