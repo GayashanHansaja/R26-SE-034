@@ -204,11 +204,12 @@ func (s *Server) RegisterTool(t *Tool) {
 		return
 	}
 
-	// Create mcp-go tool using RawInputSchema
-	mcpTool := mcp.NewTool(t.Name,
-		mcp.WithDescription(t.Description),
-		mcp.WithRawInputSchema(json.RawMessage(schemaJSON)),
-	)
+	// Create mcp-go tool using RawInputSchema directly to avoid conflict with NewTool's default InputSchema
+	mcpTool := mcp.NewToolWithRawSchema(t.Name, t.Description, json.RawMessage(schemaJSON))
+
+	// Explicitly clear structured schema fields to avoid conflict during marshaling
+	mcpTool.InputSchema = mcp.ToolInputSchema{}
+	mcpTool.OutputSchema = mcp.ToolOutputSchema{}
 
 	// Add tool to server with handler
 	s.mcpServer.AddTool(mcpTool, s.handleMCPToolCall(t.Name))
@@ -317,42 +318,41 @@ func (s *Server) MCPServer() *server.MCPServer {
 	return s.mcpServer
 }
 
-// ServeHTTP handles the SSE transport for mcp-go and a direct invocation endpoint for the CLI.
+// ServeHTTP handles the various MCP transports and management endpoints.
 func (s *Server) ServeHTTP(mux *http.ServeMux, baseURL string) {
-	// SSE transport for AI agents
+	// 1. Legacy SSE Transport (Claude Desktop, etc.)
 	sseServer := server.NewSSEServer(s.mcpServer, server.WithBaseURL(baseURL))
 	mux.Handle("/mcp/sse", sseServer.SSEHandler())
 	mux.Handle("/mcp/messages", sseServer.MessageHandler())
 
-	// Streamable HTTP transport for Postman / modern MCP clients
+	// 2. Streamable HTTP Transport (Modern clients, Postman)
+	// MUST strip prefix so the server sees "/" internally
 	streamableServer := server.NewStreamableHTTPServer(s.mcpServer,
-		server.WithEndpointPath("/mcp"),
+		server.WithStateful(true),
+		server.WithSessionIdleTTL(30*time.Minute),
+		server.WithEndpointPath("/"), // Tell the server it is mounted at /
 		server.WithStreamableHTTPCORS(
 			server.WithCORSAllowedOrigins("*"),
 			server.WithCORSAllowedMethods("POST", "GET", "OPTIONS"),
-			server.WithCORSAllowedHeaders("Content-Type", "Mcp-Session-Id", "Authorization"),
+			server.WithCORSAllowedHeaders("Content-Type", "Mcp-Session-Id", "Last-Event-ID", "Authorization"),
 			server.WithCORSExposedHeaders("Mcp-Session-Id"),
 		),
 	)
-	mux.Handle("/mcp/", streamableServer)
+	mux.Handle("/mcp/", http.StripPrefix("/mcp", streamableServer))
 
-	// Direct invocation endpoint for bridgectl
-	mux.HandleFunc("/api/tools/invoke", s.handleDirectInvoke)
-
-	// Cache management endpoints
-	mux.HandleFunc("/api/cache/stats", s.handleCacheStats)
-	mux.HandleFunc("/api/cache/flush", s.handleCacheFlush)
-	mux.HandleFunc("/api/cache/list", s.handleCacheList)
-	mux.HandleFunc("/api/cache/inspect", s.handleCacheInspect)
-
-	// Log streaming endpoint
-	mux.HandleFunc("/api/logs/stream", s.handleLogStream)
-	mux.HandleFunc("/api/logs/recent", s.handleLogRecent)
-
+	// 3. Management & Utility Endpoints
 	mux.HandleFunc("/mcp/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	mux.HandleFunc("/api/tools/invoke", s.handleDirectInvoke)
+	mux.HandleFunc("/api/cache/stats", s.handleCacheStats)
+	mux.HandleFunc("/api/cache/flush", s.handleCacheFlush)
+	mux.HandleFunc("/api/cache/list", s.handleCacheList)
+	mux.HandleFunc("/api/cache/inspect", s.handleCacheInspect)
+	mux.HandleFunc("/api/logs/stream", s.handleLogStream)
+	mux.HandleFunc("/api/logs/recent", s.handleLogRecent)
 }
 
 func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {

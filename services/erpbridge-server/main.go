@@ -104,6 +104,7 @@ func main() {
 	slog.Info("ERPBridge Server listening",
 		slog.String("port", mcpPort),
 		slog.String("mcp_sse", baseURL+"/mcp/sse"),
+		slog.String("mcp_http", baseURL+"/mcp/"),
 	)
 	log.Fatal(http.ListenAndServe(":"+mcpPort, mux))
 }

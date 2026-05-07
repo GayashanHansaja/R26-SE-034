@@ -1,0 +1,210 @@
+{
+	"info": {
+		"_postman_id": "erpbridge-mcp-collection",
+		"name": "ERPBridge MCP",
+		"description": "Collection for testing ERPBridge using Model Context Protocol (Streamable HTTP)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "MCP Transport (Streamable)",
+			"item": [
+				{
+					"name": "1. Initialize Handshake",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var sessionId = pm.response.headers.get('Mcp-Session-Id');",
+									"if (sessionId) {",
+									"    pm.collectionVariables.set('session_id', sessionId);",
+									"    console.log('Session ID captured:', sessionId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"jsonrpc\": \"2.0\",\n    \"id\": 1,\n    \"method\": \"initialize\",\n    \"params\": {\n        \"protocolVersion\": \"2024-11-05\",\n        \"capabilities\": {},\n        \"clientInfo\": {\n            \"name\": \"postman\",\n            \"version\": \"1.0.0\"\n        }\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"mcp",
+								""
+							]
+						},
+						"description": "Performs the MCP handshake. This request captures the Mcp-Session-Id header into a collection variable."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Listen for Events (SSE)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							},
+							{
+								"key": "Mcp-Session-Id",
+								"value": "{{session_id}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/mcp/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"mcp",
+								""
+							]
+						},
+						"description": "Connects to the SSE stream. In Postman, use the 'Console' or 'Visualize' tab to see incoming events if supported by your version, otherwise this will wait for the first event."
+					},
+					"response": []
+				},
+				{
+					"name": "3. List Tools",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Mcp-Session-Id",
+								"value": "{{session_id}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"jsonrpc\": \"2.0\",\n    \"id\": 2,\n    \"method\": \"tools/list\",\n    \"params\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"mcp",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "4. Call Tool (List Invoices)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Mcp-Session-Id",
+								"value": "{{session_id}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"jsonrpc\": \"2.0\",\n    \"id\": 3,\n    \"method\": \"tools/call\",\n    \"params\": {\n        \"name\": \"finance.list_invoices_api_v1_finance_invoices_get\",\n        \"arguments\": {}\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/mcp/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"mcp",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Direct Management API",
+			"item": [
+				{
+					"name": "Direct Tool Invoke",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"finance.list_invoices_api_v1_finance_invoices_get\",\n    \"arguments\": {}\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/tools/invoke",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"tools",
+								"invoke"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cache Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/cache/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"cache",
+								"stats"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080"
+		},
+		{
+			"key": "session_id",
+			"value": ""
+		}
+	]
+}

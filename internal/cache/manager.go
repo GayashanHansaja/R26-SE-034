@@ -45,6 +45,11 @@ func NewManager(rdb *redis.Client, embedder Embedder, rootLog *slog.Logger) *Man
 
 // EnsureIndex creates the RediSearch vector index if it doesn't exist.
 func (m *Manager) EnsureIndex(ctx context.Context) error {
+	if m.embedder == nil {
+		m.log.Warn("semantic caching disabled: no embedder configured")
+		return nil
+	}
+
 	// Check if index exists
 	_, err := m.rdb.Do(ctx, "FT.INFO", "idx:semantic").Result()
 	if err == nil {

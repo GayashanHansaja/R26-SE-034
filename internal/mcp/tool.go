@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/nimendra/ERPBridge/internal/cache"
@@ -109,7 +110,11 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 	fullURL := t.Endpoint.Path
 	if !strings.HasPrefix(fullURL, "http") {
 		// Fallback for relative paths
-		fullURL = "http://localhost:8081" + fullURL
+		baseURL := os.Getenv("ERP_BASE_URL")
+		if baseURL == "" {
+			baseURL = "http://localhost:8081"
+		}
+		fullURL = baseURL + fullURL
 	}
 
 	ep := connector.EndpointConfig{

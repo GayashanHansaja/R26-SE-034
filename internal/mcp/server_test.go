@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -67,4 +68,37 @@ func TestServer_HandlePromptGet(t *testing.T) {
 	textContent := res.Messages[0].Content.(mcp.TextContent).Text
 	assert.Contains(t, textContent, "Hello {{name}}")
 	assert.Contains(t, textContent, "name: world")
+}
+
+func TestServer_RegisterToolMarshaling(t *testing.T) {
+	log := logger.Init()
+	s := NewServer(nil, nil, log)
+
+	schema := InputSchema{
+		Type: "object",
+		Properties: map[string]Property{
+			"test": {Type: "string"},
+		},
+	}
+
+	s.RegisterTool(&Tool{
+		Name:        "test-tool",
+		Description: "Test",
+		InputSchema: schema,
+	})
+
+	// Access the registered tool from the internal mcpServer and try to marshal it
+	assert.NotNil(t, s.tools["test-tool"])
+
+	// Try to marshal the tools list as the server would during a tools/list request
+	schemaJSON, _ := json.Marshal(schema)
+	mcpTool := mcp.NewToolWithRawSchema("test-tool", "Test", json.RawMessage(schemaJSON))
+
+	// Apply the same fix as in RegisterTool
+	mcpTool.InputSchema = mcp.ToolInputSchema{}
+	mcpTool.OutputSchema = mcp.ToolOutputSchema{}
+
+	data, err := json.Marshal(mcpTool)
+	assert.NoError(t, err, "Tool marshaling should not fail")
+	assert.Contains(t, string(data), "\"inputSchema\":{\"type\":\"object\"")
 }
