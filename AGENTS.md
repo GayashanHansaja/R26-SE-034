@@ -1,11 +1,19 @@
 # AI Agent Integration Guide
 
-This middleware exposes ERP functionality via the **Model Context Protocol (MCP)** using the **SSE (Server-Sent Events)** transport.
+This middleware exposes ERP functionality via the **Model Context Protocol (MCP)** using multiple transport layers.
 
 ## MCP Endpoints
 
+### 1. Streamable HTTP (Recommended for Postman/Modern)
+- **Base URL**: `http://localhost:8080/mcp/`
+- **Transport**: MCP 2025-03-26
+
+### 2. SSE (Classic for Claude/Cursor)
 - **SSE Connection**: `GET /mcp/sse`
-- **Post Messages**: `POST /mcp/messages` (used by the protocol to send requests after SSE handshake)
+- **Post Messages**: `POST /mcp/messages`
+
+## Connectivity Guide
+For detailed configuration, session management, and Postman setup, see the [Connectivity & Transport Guide](./docs/connectivity.md).
 
 ## Integration Patterns
 
@@ -17,6 +25,9 @@ This middleware exposes ERP functionality via the **Model Context Protocol (MCP)
 
 Agents using the standard MCP SSE client should point to:
 `http://localhost:8080/mcp/sse`
+
+Modern clients (like Postman) should use:
+`http://localhost:8080/mcp/`
 
 ## CLI Access
 Agents can also use the `bridgectl` binary for local or containerized execution:

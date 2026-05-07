@@ -51,7 +51,7 @@ docker compose up -d --build
 1. **Mock ERP**:
    ```bash
    cd mock-erp
-   python main.py
+   uv run main.py
    ```
 
 2. **ERPBridge Server**:
@@ -109,9 +109,12 @@ ERPBridge features a two-layer caching strategy:
 1.  **Exact Match**: Keyed by a hash of tool arguments.
 2.  **Semantic Fallback**: Uses vector embeddings to find similar previous requests based on a similarity threshold (default: 0.95).
 
-### 7. AI Agent Integration
-AI agents connect via SSE at `http://localhost:8080/mcp/sse`.
-See [AGENTS.md](./AGENTS.md) for detailed integration patterns.
+### 7. Connectivity & AI Agent Integration
+ERPBridge supports multiple transport protocols for different client types:
+- **Postman & Web**: Streamable HTTP at `http://localhost:8080/mcp/`.
+- **AI Agents (Claude/Cursor)**: SSE at `http://localhost:8080/mcp/sse`.
+
+See the comprehensive [Connectivity & Transport Guide](./docs/connectivity.md) and [AGENTS.md](./AGENTS.md) for detailed integration patterns.
 
 ### 8. Development Flow
 1.  **Schema Hot-Reload**: Modify any JSON schema in `schemas/`; the middleware reloads it instantly.
