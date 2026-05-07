@@ -101,10 +101,15 @@ func buildHandler(level slog.Level) slog.Handler {
 		AddSource: level == slog.LevelDebug,
 	}
 
-	if os.Getenv("APP_ENV") == "production" {
-		return slog.NewJSONHandler(os.Stdout, opts)
+	output := os.Stdout
+	if strings.ToLower(os.Getenv("LOG_TO_STDERR")) == "true" {
+		output = os.Stderr
 	}
-	return slog.NewTextHandler(os.Stdout, opts)
+
+	if os.Getenv("APP_ENV") == "production" {
+		return slog.NewJSONHandler(output, opts)
+	}
+	return slog.NewTextHandler(output, opts)
 }
 
 func parseLevel(s string) slog.Level {
