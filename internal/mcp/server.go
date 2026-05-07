@@ -135,16 +135,6 @@ func (s *Server) RegisterPrompt(p *Prompt) {
 	s.log.Info("registered MCP prompt", slog.String("name", p.Name))
 }
 
-func (s *Server) handleMCPResourceComplete(ctx context.Context, request mcp.CompleteRequest) (*mcp.CompleteResult, error) {
-	// Not used directly anymore, handled by provider
-	return nil, nil
-}
-
-func (s *Server) handleMCPPromptComplete(ctx context.Context, request mcp.CompleteRequest) (*mcp.CompleteResult, error) {
-	// Not used directly anymore, handled by provider
-	return nil, nil
-}
-
 func (s *Server) handleMCPResourceRead(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	// Find resource by URI matching (simplistic for template)
 	// In a real implementation, we'd use a regex or template matcher
