@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -152,7 +151,7 @@ URL, and authentication headers, and displays the response status and latency.`,
 		}
 
 		start := time.Now()
-		resp, err := client.Call(context.Background(), ep, nil, nil)
+		resp, err := client.Call(cmd.Context(), ep, nil, nil)
 		latency := time.Since(start)
 
 		if err != nil {

@@ -51,11 +51,11 @@ definitions for all operations.`,
 		gen := idp.NewGenerator("", RootLog)
 
 		if openapiURL != "" {
-			tools, err := gen.GenerateFromOpenAPI(api, openapiURL)
+			tools, err := gen.GenerateFromOpenAPI(cmd.Context(), api, openapiURL)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stderr, "Generated %d tools from OpenAPI spec.\n", len(tools))
+			fmt.Fprintf(cmd.ErrOrStderr(), "generated %d tools from OpenAPI spec\n", len(tools))
 			return nil
 		}
 
@@ -184,8 +184,13 @@ how an AI agent would experience the tool.`,
 			Timeout: time.Second * 10,
 		}
 
-		// In a real app, use the context override
-		resp, err := netClient.Post(mcpURL, "application/json", strings.NewReader(string(reqBody)))
+		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodPost, mcpURL, strings.NewReader(string(reqBody)))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := netClient.Do(req)
 		if err != nil {
 			return fmt.Errorf("MCP server call failed: %w", err)
 		}
@@ -196,9 +201,10 @@ how an AI agent would experience the tool.`,
 			return fmt.Errorf("decode result failed: %w", err)
 		}
 
-		fmt.Fprintf(os.Stderr, "Invoking  %s\n", name)
+		errOut := cmd.ErrOrStderr()
+		fmt.Fprintf(errOut, "invoking %s\n", name)
 		if len(args) > 1 {
-			fmt.Fprintf(os.Stderr, "Args      %s\n\n", args[1])
+			fmt.Fprintf(errOut, "args     %s\n\n", args[1])
 		}
 
 		return formatter.Print(toolResult)
@@ -222,21 +228,21 @@ specification can be correctly parsed and transformed by ERPBridge.`,
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return NewError(CodeNotFound, "FILE_NOT_FOUND",
-					fmt.Sprintf("Schema file not found: %s", path),
+					fmt.Sprintf("schema file not found: %s", path),
 					"Check the file path and try again.")
 			}
 			var tool mcp.Tool
 			if err := json.Unmarshal(data, &tool); err != nil {
 				return NewError(CodeBadArgs, "INVALID_SCHEMA",
-					fmt.Sprintf("Invalid MCP tool schema: %v", err),
+					fmt.Sprintf("invalid MCP tool schema: %v", err),
 					"Ensure the file contains a valid MCP Tool JSON schema.")
 			}
 			if tool.Name == "" {
 				return NewError(CodeBadArgs, "MISSING_TOOL_NAME",
-					"Invalid schema: missing 'name' field",
+					"invalid schema: missing 'name' field",
 					"MCP tool schemas must have a 'name' field.")
 			}
-			fmt.Fprintf(os.Stderr, "✓ MCP Tool schema '%s' is valid.\n", path)
+			fmt.Fprintf(cmd.ErrOrStderr(), "✓ MCP tool schema '%s' is valid\n", path)
 			return nil
 		}
 
@@ -244,13 +250,13 @@ specification can be correctly parsed and transformed by ERPBridge.`,
 			gen := idp.NewGenerator("", RootLog)
 			// Mock API for validation context
 			mockAPI := idp.API{Name: "validate", Module: "test"}
-			_, err := gen.GenerateFromOpenAPI(mockAPI, path)
+			_, err := gen.GenerateFromOpenAPI(cmd.Context(), mockAPI, path)
 			if err != nil {
 				return NewError(CodeBadArgs, "INVALID_OPENAPI",
-					fmt.Sprintf("Invalid OpenAPI spec: %v", err),
+					fmt.Sprintf("invalid OpenAPI spec: %v", err),
 					"Ensure the file is a valid OpenAPI specification compatible with ERPBridge.")
 			}
-			fmt.Fprintf(os.Stderr, "✓ OpenAPI specification '%s' is valid and compatible with ERPBridge.\n", path)
+			fmt.Fprintf(cmd.ErrOrStderr(), "✓ OpenAPI specification '%s' is valid and compatible with ERPBridge\n", path)
 			return nil
 		}
 

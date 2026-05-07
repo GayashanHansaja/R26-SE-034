@@ -29,11 +29,16 @@ including total key counts, memory usage in Redis, and hit/miss trends.`,
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {
 			return NewError(CodePrecondFail, "NO_CONTEXT",
-				"No context selected",
+				"no context selected",
 				"Use 'bridgectl context set' to select an active environment.")
 		}
 
-		resp, err := http.Get(ctx.Server + "/api/cache/stats")
+		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodGet, ctx.Server+"/api/cache/stats", nil)
+		if err != nil {
+			return err
+		}
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err
 		}
@@ -41,7 +46,7 @@ including total key counts, memory usage in Redis, and hit/miss trends.`,
 
 		if resp.StatusCode != http.StatusOK {
 			return NewError(CodeGeneralErr, "SERVER_ERROR",
-				fmt.Sprintf("Server returned error: %s", resp.Status),
+				fmt.Sprintf("server returned error: %s", resp.Status),
 				"Verify the middleware server is running and reachable.")
 		}
 
@@ -68,7 +73,7 @@ or clear the entire cache with --all.`,
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]
 		if !ok {
 			return NewError(CodePrecondFail, "NO_CONTEXT",
-				"No context selected",
+				"no context selected",
 				"Use 'bridgectl context set' to select an active environment.")
 		}
 
@@ -85,7 +90,12 @@ or clear the entire cache with --all.`,
 		}
 		u.RawQuery = q.Encode()
 
-		resp, err := http.Get(u.String())
+		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodGet, u.String(), nil)
+		if err != nil {
+			return err
+		}
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err
 		}

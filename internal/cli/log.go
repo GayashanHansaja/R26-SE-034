@@ -40,7 +40,12 @@ frequency analysis of log levels and tool invocations.`,
 		}
 
 		url := ctx.Server + "/api/logs/recent"
-		resp, err := http.Get(url)
+		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodGet, url, nil)
+		if err != nil {
+			return err
+		}
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err
 		}
@@ -63,15 +68,16 @@ frequency analysis of log levels and tool invocations.`,
 			}
 		}
 
-		fmt.Println("Log Statistics (Recent 1000 events)")
-		fmt.Println("\nLevel breakdown:")
+		out := cmd.OutOrStdout()
+		fmt.Fprintln(out, "Log Statistics (Recent 1000 events)")
+		fmt.Fprintln(out, "\nLevel breakdown:")
 		for level, count := range counts {
-			fmt.Printf("  %-10s %d\n", level, count)
+			fmt.Fprintf(out, "  %-10s %d\n", level, count)
 		}
 
-		fmt.Println("\nTop tools by call count:")
+		fmt.Fprintln(out, "\nTop tools by call count:")
 		for tool, count := range tools {
-			fmt.Printf("  %-25s %d calls\n", tool, count)
+			fmt.Fprintf(out, "  %-25s %d calls\n", tool, count)
 		}
 
 		return nil
@@ -95,7 +101,12 @@ log level, or a specific request ID.`,
 		}
 
 		url := ctx.Server + "/api/logs/stream"
-		resp, err := http.Get(url)
+		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodGet, url, nil)
+		if err != nil {
+			return err
+		}
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err
 		}
@@ -105,6 +116,7 @@ log level, or a specific request ID.`,
 			return fmt.Errorf("server error: %s", resp.Status)
 		}
 
+		out := cmd.OutOrStdout()
 		reader := bufio.NewReader(resp.Body)
 		for {
 			line, err := reader.ReadString('\n')
@@ -122,7 +134,7 @@ log level, or a specific request ID.`,
 				// For simplicity, we'll just print it.
 				// In a real app, we'd parse JSON and filter based on flags.
 				if shouldPrint(msg) {
-					fmt.Println(msg)
+					fmt.Fprintln(out, msg)
 				}
 			}
 		}
