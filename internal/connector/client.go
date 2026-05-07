@@ -1,3 +1,5 @@
+// Package connector provides an HTTP client with built-in resilience
+// features like retries and circuit breaking for communicating with ERP systems.
 package connector
 
 import (
@@ -16,14 +18,21 @@ import (
 	"github.com/sony/gobreaker"
 )
 
+// AuthConfig defines the authentication credentials for an ERP request.
 type AuthConfig struct {
-	Type     string // "api-key" | "basic" | "bearer"
-	Header   string // e.g. "X-API-Key"
-	Key      string // value or resolved secret
+	// Type of authentication: "api-key", "basic", or "bearer".
+	Type string
+	// Header name for api-key authentication (e.g., "X-API-Key").
+	Header string
+	// Key is the API key value or secret.
+	Key string
+	// Username for basic authentication.
 	Username string
-	Token    string
+	// Token for bearer authentication.
+	Token string
 }
 
+// EndpointConfig describes the target ERP API endpoint and its requirements.
 type EndpointConfig struct {
 	Method  string
 	Path    string
@@ -31,12 +40,14 @@ type EndpointConfig struct {
 	Auth    AuthConfig
 }
 
+// Client is a resilient HTTP client for ERP communication.
 type Client struct {
 	http *http.Client
 	cb   *gobreaker.CircuitBreaker
 	log  *slog.Logger
 }
 
+// NewClient creates a new resilient ERP client with the provided root logger.
 func NewClient(rootLog *slog.Logger) *Client {
 	log := logger.Component(rootLog, "connector")
 
