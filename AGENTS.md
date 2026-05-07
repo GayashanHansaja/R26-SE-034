@@ -8,25 +8,25 @@ This middleware exposes ERP functionality via the **Model Context Protocol (MCP)
 - **Base URL**: `http://localhost:8080/mcp/`
 - **Transport**: MCP 2025-03-26
 
-### 2. SSE (Classic for Claude/Cursor)
-- **SSE Connection**: `GET /mcp/sse`
-- **Post Messages**: `POST /mcp/messages`
+### 2. Stdio (Recommended for Claude/Cursor)
+- **Method**: Start `bridgectl` with the `--stdio` flag.
+- **Transport**: Standard Input/Output.
 
 ## Connectivity Guide
 For detailed configuration, session management, and Postman setup, see the [Connectivity & Transport Guide](./docs/connectivity.md).
 
 ## Integration Patterns
 
-1. **SSE Handshake**: Agents should connect to `/mcp/sse` to establish a persistent connection. The server will provide a session ID and a dedicated message endpoint.
-2. **Tool Discovery**: Once connected, the agent can request the list of available tools.
-3. **Execution**: Use the provided message endpoint to call tools. The middleware routes these calls to the underlying ERP systems.
+1. **Transport Selection**: Local agents should use **Stdio** for best performance. Remote or web-based agents should use **Streamable HTTP**.
+2. **Tool Discovery**: Once the connection is established, the agent can request the list of available tools via the standard MCP `initialize` and `tools/list` lifecycle.
+3. **Execution**: The middleware routes tool calls to the underlying ERP systems, handling resilience and caching automatically.
 
-## Example Discovery (mark3labs/mcp-go compatible)
+## Example Discovery
 
-Agents using the standard MCP SSE client should point to:
-`http://localhost:8080/mcp/sse`
+Agents using the standard MCP Stdio client should be configured to run:
+`bridgectl serve --stdio`
 
-Modern clients (like Postman) should use:
+Modern HTTP clients (like Postman) should use:
 `http://localhost:8080/mcp/`
 
 ## CLI Access

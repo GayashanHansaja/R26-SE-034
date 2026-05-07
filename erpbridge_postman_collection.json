@@ -53,7 +53,7 @@
 					"response": []
 				},
 				{
-					"name": "2. Listen for Events (SSE)",
+					"name": "2. Listen for Notifications (Streamable HTTP)",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -76,7 +76,7 @@
 								""
 							]
 						},
-						"description": "Connects to the SSE stream. In Postman, use the 'Console' or 'Visualize' tab to see incoming events if supported by your version, otherwise this will wait for the first event."
+						"description": "Connects to the notification stream. In Postman, use the 'Console' or 'Visualize' tab to see incoming events if supported by your version, otherwise this will wait for the first event."
 					},
 					"response": []
 				},

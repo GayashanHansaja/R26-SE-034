@@ -320,12 +320,7 @@ func (s *Server) MCPServer() *server.MCPServer {
 
 // ServeHTTP handles the various MCP transports and management endpoints.
 func (s *Server) ServeHTTP(mux *http.ServeMux, baseURL string) {
-	// 1. Legacy SSE Transport (Claude Desktop, etc.)
-	sseServer := server.NewSSEServer(s.mcpServer, server.WithBaseURL(baseURL))
-	mux.Handle("/mcp/sse", sseServer.SSEHandler())
-	mux.Handle("/mcp/messages", sseServer.MessageHandler())
-
-	// 2. Streamable HTTP Transport (Modern clients, Postman)
+	// 1. Streamable HTTP Transport (Modern clients, Postman)
 	// MUST strip prefix so the server sees "/" internally
 	streamableServer := server.NewStreamableHTTPServer(s.mcpServer,
 		server.WithStateful(true),

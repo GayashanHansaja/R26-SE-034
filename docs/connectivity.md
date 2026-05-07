@@ -17,18 +17,11 @@ This is the latest transport specification (March 2025) designed for stateless o
 - **Transport Type:** Streamable HTTP
 - **URL:** `http://localhost:8080/mcp/`
 
-## 2. SSE Transport (Classic MCP)
-Server-Sent Events (SSE) is the "classic" persistent connection method used by most current AI tools and IDE plugins.
+## 2. Stdio (Local Integration)
+Standard Input/Output (stdio) is the preferred transport for local integrations where the ERPBridge server is started as a child process by the client (e.g., an IDE or a CLI tool).
 
-- **SSE Endpoint:** `http://localhost:8080/mcp/sse`
-- **Message Endpoint:** `http://localhost:8080/mcp/messages`
-- **Transport Specification:** MCP 2024-11-05
-- **Best For:** Claude Desktop, Cursor, and other IDE-integrated agents.
-
-### Integration Flow
-1. Client connects via `GET /mcp/sse` to establish a stream.
-2. Server responds with a session ID and the message endpoint URL.
-3. Client sends JSON-RPC requests via `POST` to the message endpoint.
+- **Best For:** Claude Desktop, Cursor, and other IDE-integrated agents running locally.
+- **Usage:** Run the server with the `--stdio` flag.
 
 ## 3. Direct API (Internal/CLI)
 The server exposes direct HTTP endpoints for internal management, performance monitoring, and the `bridgectl` CLI. These do not require a full MCP handshake.
@@ -49,9 +42,9 @@ Standard endpoints for system health and observability.
 
 ## Summary Table
 
-| Client Type | Recommended Transport | Base URL |
+| Client Type | Recommended Transport | Base URL / Method |
 | :--- | :--- | :--- |
 | **Postman / Web** | Streamable HTTP | `http://localhost:8080/mcp/` |
-| **Claude / Cursor** | SSE | `http://localhost:8080/mcp/sse` |
+| **Claude / Cursor** | Stdio | `bridgectl serve --stdio` |
 | **bridgectl / Scripts** | Direct API | `http://localhost:8080/api/` |
 | **Prometheus** | HTTP | `http://localhost:8080/metrics` |

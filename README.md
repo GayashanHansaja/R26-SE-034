@@ -5,7 +5,7 @@ Middleware for bridging legacy ERP systems with Agentic AI using the Model Conte
 ## Architecture
 
 - **mock-erp/**: Temporary Python FastAPI service simulating legacy ERP modules (Finance, HR, Inventory).
-- **services/erpbridge-server/**: Go-based MCP Server (HTTP/SSE) + ERP Connector.
+- **services/erpbridge-server/**: Go-based MCP Server (HTTP/Stdio) + ERP Connector.
 - **tools/bridgectl/**: Go CLI for developers and AI agents to manage APIs and tools.
 - **internal/**: Shared Go libraries for configuration, protocol handling, and I/O.
 
@@ -23,7 +23,7 @@ Middleware for bridging legacy ERP systems with Agentic AI using the Model Conte
 | **Primary Role** | Runtime execution and protocol bridging. | Development, debugging, and management. |
 | **Connectivity** | Connects to Redis and Legacy ERP APIs. | Connects to ERPBridge Server API. |
 | **Lifecycle** | Long-running daemon (Docker/Kubernetes). | Short-lived command execution. |
-| **Interface** | SSE (for agents) / HTTP (for metrics/CLI). | Standard Output (Table/JSON/YAML). |
+| **Interface** | HTTP (for agents) / Stdio. | Standard Output (Table/JSON/YAML). |
 | **State** | Manages semantic cache and circuit breakers. | Stateless; reads configuration from `~/.erpbridge.yaml`. |
 
 ## Stack
@@ -71,7 +71,7 @@ Explore our comprehensive documentation in the [docs/](./docs) directory:
 
 - **[Documentation Wiki](./docs/README.md)**: Central hub for all guides.
 - **[Docker Deployment Guide](./docs/docker.md)**: Setup and manage ERPBridge with Docker.
-- **[Connectivity & Transport Guide](./docs/connectivity.md)**: SSE, Streamable HTTP, and Postman setup.
+- **[Connectivity & Transport Guide](./docs/connectivity.md)**: Streamable HTTP, Stdio, and Postman setup.
 - **[CLI Reference](./docs/cli/bridgectl.md)**: Detailed `bridgectl` command documentation.
 - **[AI Agent Integration](./AGENTS.md)**: Patterns for Claude, Cursor, and more.
 
