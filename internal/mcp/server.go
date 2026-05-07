@@ -255,6 +255,18 @@ func (s *Server) ServeHTTP(mux *http.ServeMux, baseURL string) {
 	mux.Handle("/mcp/sse", sseServer.SSEHandler())
 	mux.Handle("/mcp/messages", sseServer.MessageHandler())
 
+	// Streamable HTTP transport for Postman / modern MCP clients
+	streamableServer := server.NewStreamableHTTPServer(s.mcpServer,
+		server.WithEndpointPath("/mcp"),
+		server.WithStreamableHTTPCORS(
+			server.WithCORSAllowedOrigins("*"),
+			server.WithCORSAllowedMethods("POST", "GET", "OPTIONS"),
+			server.WithCORSAllowedHeaders("Content-Type", "Mcp-Session-Id", "Authorization"),
+			server.WithCORSExposedHeaders("Mcp-Session-Id"),
+		),
+	)
+	mux.Handle("/mcp/", streamableServer)
+
 	// Direct invocation endpoint for bridgectl
 	mux.HandleFunc("/api/tools/invoke", s.handleDirectInvoke)
 
