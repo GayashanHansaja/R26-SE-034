@@ -39,16 +39,19 @@ var contextListCmd = &cobra.Command{
 	},
 }
 
+// ContextItem represents a single configured environment in the CLI.
 type ContextItem struct {
 	Name    string `json:"name"`
 	Server  string `json:"server"`
 	Current bool   `json:"current"`
 }
 
+// ContextListResponse wraps a list of ContextItem for table rendering.
 type ContextListResponse struct {
 	Items []ContextItem `json:"items"`
 }
 
+// RenderTable implements the output.TableRenderer interface.
 func (r *ContextListResponse) RenderTable(w io.Writer) error {
 	tw := output.NewTabWriter(w)
 	_, _ = fmt.Fprintln(tw, "NAME\tSERVER\tCURRENT")
@@ -78,6 +81,7 @@ var contextSetCmd = &cobra.Command{
 	},
 }
 
+// saveConfig writes the current CLI configuration to ~/.bridgectl/config.yaml.
 func saveConfig() error {
 	home, _ := os.UserHomeDir()
 	path := filepath.Join(home, ".bridgectl", "config.yaml")

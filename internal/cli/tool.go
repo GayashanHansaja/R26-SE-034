@@ -55,7 +55,7 @@ definitions for all operations.`,
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "generated %d tools from OpenAPI spec\n", len(tools))
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "generated %d tools from OpenAPI spec\n", len(tools))
 			return nil
 		}
 
@@ -74,12 +74,14 @@ definitions for all operations.`,
 	},
 }
 
+// ToolGenerateResponse contains details about a newly generated MCP tool schema.
 type ToolGenerateResponse struct {
 	ToolName string `json:"toolName"`
 	Module   string `json:"module"`
 	Path     string `json:"path"`
 }
 
+// RenderTable implements the output.TableRenderer interface.
 func (r *ToolGenerateResponse) RenderTable(w io.Writer) error {
 	_, _ = fmt.Fprintf(w, "Generating tool schema for  %s\n\n", r.ToolName)
 	_, _ = fmt.Fprintf(w, "  Saving schema...       ✓ %s\n\n", r.Path)
@@ -128,6 +130,7 @@ var toolListCmd = &cobra.Command{
 	},
 }
 
+// ToolListItem represents a single MCP tool found in the schemas directory.
 type ToolListItem struct {
 	Name        string    `json:"name"`
 	Module      string    `json:"module"`
@@ -135,11 +138,13 @@ type ToolListItem struct {
 	GeneratedAt time.Time `json:"generatedAt"`
 }
 
+// ToolListResponse wraps a list of ToolListItem for table rendering.
 type ToolListResponse struct {
 	Items []ToolListItem `json:"items"`
 	Total int            `json:"total"`
 }
 
+// RenderTable implements the output.TableRenderer interface.
 func (r *ToolListResponse) RenderTable(w io.Writer) error {
 	tw := output.NewTabWriter(w)
 	_, _ = fmt.Fprintln(tw, "NAME\tMODULE\tSTATUS\tGENERATED")
@@ -202,9 +207,9 @@ how an AI agent would experience the tool.`,
 		}
 
 		errOut := cmd.ErrOrStderr()
-		fmt.Fprintf(errOut, "invoking %s\n", name)
+		_, _ = fmt.Fprintf(errOut, "invoking %s\n", name)
 		if len(args) > 1 {
-			fmt.Fprintf(errOut, "args     %s\n\n", args[1])
+			_, _ = fmt.Fprintf(errOut, "args     %s\n\n", args[1])
 		}
 
 		return formatter.Print(toolResult)
@@ -242,7 +247,7 @@ specification can be correctly parsed and transformed by ERPBridge.`,
 					"invalid schema: missing 'name' field",
 					"MCP tool schemas must have a 'name' field.")
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "✓ MCP tool schema '%s' is valid\n", path)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "✓ MCP tool schema '%s' is valid\n", path)
 			return nil
 		}
 
@@ -256,7 +261,7 @@ specification can be correctly parsed and transformed by ERPBridge.`,
 					fmt.Sprintf("invalid OpenAPI spec: %v", err),
 					"Ensure the file is a valid OpenAPI specification compatible with ERPBridge.")
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "✓ OpenAPI specification '%s' is valid and compatible with ERPBridge\n", path)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "✓ OpenAPI specification '%s' is valid and compatible with ERPBridge\n", path)
 			return nil
 		}
 

@@ -106,11 +106,15 @@ or clear the entire cache with --all.`,
 	},
 }
 
+// FlushResponse contains the results of a cache flush operation.
 type FlushResponse struct {
-	Deleted int    `json:"deleted"`
-	Status  string `json:"status"`
+	// Deleted is the number of cache entries removed.
+	Deleted int `json:"deleted"`
+	// Status indicates the outcome of the flush request.
+	Status string `json:"status"`
 }
 
+// RenderTable implements the output.TableRenderer interface.
 func (r *FlushResponse) RenderTable(w io.Writer) error {
 	_, err := fmt.Fprintf(w, "Deleted %d cache entries.\n", r.Deleted)
 	return err

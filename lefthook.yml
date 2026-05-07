@@ -7,9 +7,9 @@ pre-commit:
       glob: "*.go"
       run: gofmt -w {staged_files}
       stage_fixed: true # re-stage files reformatted by go fmt
-    # lint:
-    #   glob: "*.go"
-    #   run: golangci-lint run {staged_files}
+    lint:
+      glob: "*.go"
+      run: golangci-lint run {staged_files}
     test-short:
       run: go test -short ./...
 

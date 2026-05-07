@@ -1,3 +1,5 @@
+// Package cli implements the command-line interface for bridgectl,
+// providing tools for managing ERPBridge environments and APIs.
 package cli
 
 import (
@@ -18,13 +20,17 @@ var (
 	ctxOverride  string
 	verbose      bool
 
+	// Version is the current version of the bridgectl CLI.
 	Version = "dev"
 
 	cfg       *config.Config
 	formatter *output.Formatter
-	RootLog   *slog.Logger
+
+	// RootLog is the global logger instance used by the CLI.
+	RootLog *slog.Logger
 )
 
+// RootCmd represents the base command when called without any subcommands.
 var RootCmd = &cobra.Command{
 	Use:           "bridgectl",
 	Short:         "Middleware for Bridging Legacy ERP and Agentic AI",
@@ -65,6 +71,7 @@ and supports multiple output formats including Table, JSON, and YAML.`,
 	},
 }
 
+// Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
 		handleError(err)

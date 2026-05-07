@@ -70,10 +70,12 @@ Once registered, you can generate an MCP tool schema from this API definition.`,
 	},
 }
 
+// APIRegistrationResponse wraps an idp.API for table rendering after registration.
 type APIRegistrationResponse struct {
 	API idp.API `json:"api" yaml:"api"`
 }
 
+// RenderTable implements the output.TableRenderer interface.
 func (r *APIRegistrationResponse) RenderTable(w io.Writer) error {
 	_, _ = fmt.Fprintf(w, "Registered API  %s\n", r.API.Name)
 	_, _ = fmt.Fprintf(w, "ID              %s\n", r.API.ID)
@@ -103,10 +105,12 @@ var apiListCmd = &cobra.Command{
 	},
 }
 
+// APIListResponse wraps a list of idp.API for table rendering.
 type APIListResponse struct {
 	Items []idp.API `json:"items" yaml:"items"`
 }
 
+// RenderTable implements the output.TableRenderer interface.
 func (r *APIListResponse) RenderTable(w io.Writer) error {
 	tw := output.NewTabWriter(w)
 	_, _ = fmt.Fprintln(tw, "ID\tNAME\tMODULE\tMETHOD\tSTATUS")
@@ -175,6 +179,7 @@ URL, and authentication headers, and displays the response status and latency.`,
 	},
 }
 
+// APITestResponse contains the results of an API connectivity test.
 type APITestResponse struct {
 	API       idp.API       `json:"api"`
 	Status    string        `json:"status"`
@@ -184,6 +189,7 @@ type APITestResponse struct {
 	IsSuccess bool          `json:"isSuccess"`
 }
 
+// RenderTable implements the output.TableRenderer interface.
 func (r *APITestResponse) RenderTable(w io.Writer) error {
 	_, _ = fmt.Fprintf(w, "Testing  %s\n", r.API.Name)
 	_, _ = fmt.Fprintf(w, "URL      %s %s\n", r.API.Method, r.API.URL)
