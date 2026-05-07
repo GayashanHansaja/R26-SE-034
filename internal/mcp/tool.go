@@ -108,13 +108,30 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 	}
 
 	fullURL := t.Endpoint.Path
-	if !strings.HasPrefix(fullURL, "http") {
-		// Fallback for relative paths
-		baseURL := os.Getenv("ERP_BASE_URL")
-		if baseURL == "" {
-			baseURL = "http://localhost:8081"
+	envBaseURL := os.Getenv("ERP_BASE_URL")
+
+	if envBaseURL != "" {
+		u, err := url.Parse(fullURL)
+		if err == nil {
+			if u.IsAbs() {
+				// If it's an absolute URL pointing to localhost, override it with ERP_BASE_URL
+				if strings.HasPrefix(u.Host, "localhost") || strings.HasPrefix(u.Host, "127.0.0.1") || strings.HasPrefix(u.Host, "[::1]") {
+					base, err := url.Parse(envBaseURL)
+					if err == nil {
+						u.Scheme = base.Scheme
+						u.Host = base.Host
+						// Keep the path and query from the original absolute URL
+						fullURL = u.String()
+					}
+				}
+			} else {
+				// If it's a relative path, simply prepend the base URL
+				fullURL = strings.TrimSuffix(envBaseURL, "/") + "/" + strings.TrimPrefix(fullURL, "/")
+			}
 		}
-		fullURL = baseURL + fullURL
+	} else if !strings.HasPrefix(fullURL, "http") {
+		// Fallback for relative paths if no environment variable is set
+		fullURL = "http://localhost:8081" + "/" + strings.TrimPrefix(fullURL, "/")
 	}
 
 	ep := connector.EndpointConfig{
