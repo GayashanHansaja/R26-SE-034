@@ -69,15 +69,15 @@ frequency analysis of log levels and tool invocations.`,
 		}
 
 		out := cmd.OutOrStdout()
-		fmt.Fprintln(out, "Log Statistics (Recent 1000 events)")
-		fmt.Fprintln(out, "\nLevel breakdown:")
+		_, _ = fmt.Fprintln(out, "Log Statistics (Recent 1000 events)")
+		_, _ = fmt.Fprintln(out, "\nLevel breakdown:")
 		for level, count := range counts {
-			fmt.Fprintf(out, "  %-10s %d\n", level, count)
+			_, _ = fmt.Fprintf(out, "  %-10s %d\n", level, count)
 		}
 
-		fmt.Fprintln(out, "\nTop tools by call count:")
+		_, _ = fmt.Fprintln(out, "\nTop tools by call count:")
 		for tool, count := range tools {
-			fmt.Fprintf(out, "  %-25s %d calls\n", tool, count)
+			_, _ = fmt.Fprintf(out, "  %-25s %d calls\n", tool, count)
 		}
 
 		return nil
@@ -134,7 +134,7 @@ log level, or a specific request ID.`,
 				// For simplicity, we'll just print it.
 				// In a real app, we'd parse JSON and filter based on flags.
 				if shouldPrint(msg) {
-					fmt.Fprintln(out, msg)
+					_, _ = fmt.Fprintln(out, msg)
 				}
 			}
 		}

@@ -31,7 +31,7 @@ func main() {
 	useStdio := *stdioFlag || transport == "stdio"
 
 	if useStdio {
-		os.Setenv("LOG_TO_STDERR", "true")
+		_ = os.Setenv("LOG_TO_STDERR", "true")
 	}
 
 	// Initialize Logger
