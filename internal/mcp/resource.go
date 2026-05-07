@@ -9,14 +9,21 @@ import (
 	"github.com/nimendra/ERPBridge/internal/connector"
 )
 
+// Resource represents a read-only data source that can be accessed by an AI agent.
 type Resource struct {
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	URITemplate string    `json:"uriTemplate"`
-	MimeType    string    `json:"mimeType,omitempty"`
-	Endpoint    *Endpoint `json:"endpoint,omitempty"`
+	// Name is the unique identifier for the resource.
+	Name string `json:"name"`
+	// Description provides a human-readable explanation of the resource content.
+	Description string `json:"description"`
+	// URITemplate defines the pattern used to access this resource.
+	URITemplate string `json:"uriTemplate"`
+	// MimeType specifies the format of the resource content (e.g., "text/markdown").
+	MimeType string `json:"mimeType,omitempty"`
+	// Endpoint provides the technical details for fetching the resource data.
+	Endpoint *Endpoint `json:"endpoint,omitempty"`
 }
 
+// Execute fetches the resource content from the underlying ERP system.
 func (r *Resource) Execute(ctx context.Context, uri string, conn ERPConnector) (string, error) {
 	if r.Endpoint == nil {
 		return "", fmt.Errorf("resource %s has no endpoint configuration", r.Name)

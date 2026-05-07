@@ -15,22 +15,32 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
+// Tool represents a protocol-compliant MCP tool that an AI agent can invoke.
 type Tool struct {
-	Name         string        `json:"name"`
-	Description  string        `json:"description"`
-	Module       string        `json:"module,omitempty"`
-	InputSchema  InputSchema   `json:"inputSchema"`
-	OutputSchema *any          `json:"outputSchema,omitempty"` // Optional JSON schema for response validation
-	Endpoint     *Endpoint     `json:"endpoint,omitempty"`
-	Cache        *cache.Config `json:"cache,omitempty"`
+	// Name is the unique identifier for the tool.
+	Name string `json:"name"`
+	// Description provides a human-readable explanation of what the tool does.
+	Description string `json:"description"`
+	// Module is the ERP module this tool belongs to (e.g., "finance").
+	Module string `json:"module,omitempty"`
+	// InputSchema defines the expected arguments for the tool call.
+	InputSchema InputSchema `json:"inputSchema"`
+	// OutputSchema is an optional JSON schema used for validating the ERP response.
+	OutputSchema *any `json:"outputSchema,omitempty"`
+	// Endpoint contains the connection details for the underlying ERP API.
+	Endpoint *Endpoint `json:"endpoint,omitempty"`
+	// Cache defines the caching strategy for this tool.
+	Cache *cache.Config `json:"cache,omitempty"`
 }
 
+// InputSchema defines the structure of arguments required by a tool.
 type InputSchema struct {
 	Type       string              `json:"type"`
 	Properties map[string]Property `json:"properties"`
 	Required   []string            `json:"required,omitempty"`
 }
 
+// Property describes a single field in a tool's input schema.
 type Property struct {
 	Type        string   `json:"type"`
 	Description string   `json:"description,omitempty"`
@@ -38,12 +48,14 @@ type Property struct {
 	Default     any      `json:"default,omitempty"`
 }
 
+// Endpoint provides the technical configuration for an ERP API call.
 type Endpoint struct {
 	Method string   `json:"method"`
 	Path   string   `json:"path"`
 	Auth   AuthInfo `json:"auth"`
 }
 
+// AuthInfo contains the credentials and authentication method for an endpoint.
 type AuthInfo struct {
 	Type     string `json:"type"`
 	Header   string `json:"header"`
@@ -52,21 +64,28 @@ type AuthInfo struct {
 	Token    string `json:"token"`
 }
 
+// ToolCallRequest represents an incoming request from an MCP client to invoke a tool.
 type ToolCallRequest struct {
 	Name      string         `json:"name"`
 	Arguments map[string]any `json:"arguments"`
 }
 
+// ToolResult encapsulates the outcome of a tool invocation.
 type ToolResult struct {
-	Result  any  `json:"result"`
-	Error   any  `json:"error,omitempty"`
+	// Result contains the successful response data from the ERP.
+	Result any `json:"result"`
+	// Error contains details about a failed invocation.
+	Error any `json:"error,omitempty"`
+	// IsError indicates if the invocation failed.
 	IsError bool `json:"isError,omitempty"`
 }
 
+// ERPConnector defines the interface for executing calls to external ERP systems.
 type ERPConnector interface {
 	Call(ctx context.Context, ep connector.EndpointConfig, queryParams url.Values, body io.Reader) (*http.Response, error)
 }
 
+// Execute performs the actual tool invocation by calling the underlying ERP API.
 func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnector) (*ToolResult, error) {
 	if t.Endpoint == nil {
 		return nil, fmt.Errorf("tool %s has no endpoint configuration", t.Name)
@@ -87,14 +106,9 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 		body = strings.NewReader(string(data))
 	}
 
-	// If Path is already a full URL, BaseURL can be empty
-	// If Path is relative, we should ideally use the context's ERPBase, but for now we'll assume Path is full or handled.
-	// Since generator puts absolute paths if available, or relative, let's fix it by pulling from config or assuming Path might be full.
-	// Actually, the generator creates path like "/api/v1/..." if Server URL is missing in OpenAPI. Let's prepend localhost:8081 for testing.
-
 	fullURL := t.Endpoint.Path
 	if !strings.HasPrefix(fullURL, "http") {
-		// Fallback for relative paths generated from OpenAPI without servers
+		// Fallback for relative paths
 		fullURL = "http://localhost:8081" + fullURL
 	}
 
@@ -122,7 +136,6 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 		return nil, fmt.Errorf("decode erp response: %w", err)
 	}
 
-	// Task 6: Response Validation
 	if t.OutputSchema != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		if err := validateResponse(resultData, t.OutputSchema); err != nil {
 			return &ToolResult{
@@ -140,15 +153,12 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 }
 
 func validateResponse(data any, schema any) error {
-	// The openapi schema from kin-openapi needs to be properly serialized to JSON schema format.
 	schemaBytes, err := json.Marshal(schema)
 	if err != nil {
 		return err
 	}
 
 	c := jsonschema.NewCompiler()
-	// Kin-openapi generates swagger/openapi schemas which might need leniency.
-
 	if err := c.AddResource("schema.json", bytes.NewReader(schemaBytes)); err != nil {
 		return fmt.Errorf("add resource: %w", err)
 	}

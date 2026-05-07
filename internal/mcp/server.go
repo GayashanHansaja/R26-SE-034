@@ -1,3 +1,6 @@
+// Package mcp implements the Model Context Protocol (MCP) server,
+// allowing AI agents to interact with ERP systems through tools,
+// resources, and prompts.
 package mcp
 
 import (
@@ -16,6 +19,7 @@ import (
 	"github.com/nimendra/ERPBridge/internal/metrics"
 )
 
+// Server is the primary MCP server implementation for ERPBridge.
 type Server struct {
 	mcpServer *server.MCPServer
 	connector ERPConnector
@@ -27,6 +31,7 @@ type Server struct {
 	prompts   map[string]*Prompt
 }
 
+// NewServer creates a new Server instance with the provided connector, cache manager, and logger.
 func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Logger) *Server {
 	s := server.NewMCPServer("ERPBridge", "1.0.0",
 		server.WithLogging(),
@@ -77,16 +82,20 @@ func (s *Server) startClientLogging() {
 	}()
 }
 
+// ResourceCompletionProvider implements the mcp-go completion provider for resources.
 type ResourceCompletionProvider struct{}
 
+// CompleteResourceArgument provides suggestions for resource URIs.
 func (p *ResourceCompletionProvider) CompleteResourceArgument(ctx context.Context, uri string, argument mcp.CompleteArgument, context mcp.CompleteContext) (*mcp.Completion, error) {
 	return &mcp.Completion{
 		Values: []string{"recent-item-1", "recent-item-2"},
 	}, nil
 }
 
+// PromptCompletionProvider implements the mcp-go completion provider for prompts.
 type PromptCompletionProvider struct{}
 
+// CompletePromptArgument provides suggestions for prompt arguments.
 func (p *PromptCompletionProvider) CompletePromptArgument(ctx context.Context, name string, argument mcp.CompleteArgument, context mcp.CompleteContext) (*mcp.Completion, error) {
 	return &mcp.Completion{
 		Values: []string{"suggested-value-A", "suggested-value-B"},
@@ -313,6 +322,7 @@ func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 	}
 }
 
+// MCPServer returns the underlying mcp-go MCPServer instance.
 func (s *Server) MCPServer() *server.MCPServer {
 	return s.mcpServer
 }
