@@ -16,19 +16,20 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/nimendra/ERPBridge/internal/cache"
 	"github.com/nimendra/ERPBridge/internal/logger"
-	"github.com/nimendra/ERPBridge/internal/metrics"
 )
 
 // Server is the primary MCP server implementation for ERPBridge.
 type Server struct {
-	mcpServer *server.MCPServer
-	connector ERPConnector
-	cache     *cache.Manager
-	log       *slog.Logger
-	mu        sync.RWMutex
-	tools     map[string]*Tool
-	resources map[string]*Resource
-	prompts   map[string]*Prompt
+	mcpServer       *server.MCPServer
+	connector       ERPConnector
+	cache           *cache.Manager
+	log             *slog.Logger
+	mu              sync.RWMutex
+	tools           map[string]*Tool
+	resources       map[string]*Resource
+	prompts         map[string]*Prompt
+	Notifier        *CustomNotifier
+	toolMiddlewares []server.ToolHandlerMiddleware
 }
 
 // NewServer creates a new Server instance with the provided connector, cache manager, and logger.
@@ -38,6 +39,7 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 		server.WithResourceCompletionProvider(&ResourceCompletionProvider{}),
 		server.WithPromptCompletionProvider(&PromptCompletionProvider{}),
 	)
+
 	srv := &Server{
 		mcpServer: s,
 		connector: connector,
@@ -46,11 +48,62 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 		tools:     make(map[string]*Tool),
 		resources: make(map[string]*Resource),
 		prompts:   make(map[string]*Prompt),
+		Notifier:  NewCustomNotifier(s),
+	}
+
+	// Initialize global tool middlewares
+	srv.toolMiddlewares = []server.ToolHandlerMiddleware{
+		LoggingMiddleware(srv.log),
+		MetricsMiddleware(),
 	}
 
 	srv.startClientLogging()
+	srv.RegisterBuiltinTools()
 
 	return srv
+}
+
+// RegisterBuiltinTools registers internal system tools.
+func (s *Server) RegisterBuiltinTools() {
+	s.RegisterTool(&Tool{
+		Name:        "system.progress_test",
+		Description: "A demonstration tool that sends real-time progress notifications.",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"steps": {
+					Type:        "integer",
+					Description: "Number of steps to simulate (max 100).",
+					Default:     10,
+				},
+			},
+		},
+		Handler: func(ctx context.Context, args map[string]any) (*ToolResult, error) {
+			steps := 10
+			if s, ok := args["steps"].(float64); ok {
+				steps = int(s)
+			}
+			if steps > 100 {
+				steps = 100
+			}
+
+			for i := 1; i <= steps; i++ {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(200 * time.Millisecond):
+					s.Notifier.SendProgress(ctx, i, steps, fmt.Sprintf("Processing step %d/%d...", i, steps))
+				}
+			}
+
+			return &ToolResult{
+				Result: map[string]any{
+					"status":  "completed",
+					"message": fmt.Sprintf("Finished %d steps successfully.", steps),
+				},
+			}, nil
+		},
+	})
 }
 
 func (s *Server) startClientLogging() {
@@ -212,7 +265,17 @@ func (s *Server) RegisterTool(t *Tool) {
 	mcpTool.OutputSchema = mcp.ToolOutputSchema{}
 
 	// Add tool to server with handler
-	s.mcpServer.AddTool(mcpTool, s.handleMCPToolCall(t.Name))
+	handler := s.handleMCPToolCall(t.Name)
+
+	// Apply tool-specific middlewares
+	handler = s.CacheMiddleware(t)(handler)
+
+	// Apply global middlewares
+	for i := len(s.toolMiddlewares) - 1; i >= 0; i-- {
+		handler = s.toolMiddlewares[i](handler)
+	}
+
+	s.mcpServer.AddTool(mcpTool, handler)
 	s.log.Info("registered MCP tool", slog.String("tool_name", t.Name))
 
 	// Notify clients that tools have changed
@@ -221,91 +284,24 @@ func (s *Server) RegisterTool(t *Tool) {
 
 func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		start := time.Now()
-		reqID := logger.NewRequestID()
-
 		s.mu.RLock()
 		t, ok := s.tools[name]
 		s.mu.RUnlock()
 
 		if !ok {
-			s.log.Warn("tool not found", slog.String("request_id", reqID), slog.String("tool_name", name))
 			return nil, fmt.Errorf("tool not found: %s", name)
 		}
 
 		// Type assertion for arguments
 		args, ok := request.Params.Arguments.(map[string]any)
 		if !ok && request.Params.Arguments != nil {
-			s.log.Error("invalid arguments format", slog.String("request_id", reqID), slog.String("tool_name", name))
 			return nil, fmt.Errorf("invalid arguments format")
-		}
-
-		// Attach standard fields to the logger for this request
-		var role string // Extract from context if available
-		reqLog := s.log.With(
-			slog.String("request_id", reqID),
-			slog.String("tool_name", t.Name),
-			slog.String("role", role),
-		)
-		ctx = logger.WithLogger(ctx, reqLog)
-
-		reqLog.Info("tool call received", slog.Any("arg_keys", logger.ArgKeys(args)))
-		reqLog.Debug("tool call arguments", slog.Any("args", logger.Arguments(args)))
-
-		// Caching Layer — READ
-		var cacheStatus = "MISS"
-		var cacheType = "none"
-		if s.cache != nil && t.Cache != nil && t.Cache.Enabled {
-			entry, err := s.cache.Get(ctx, t.Name, role, args, *t.Cache)
-			if err == nil && entry != nil && entry.HitType != "miss" {
-				cacheStatus = "HIT"
-				cacheType = entry.HitType
-
-				// Record metrics
-				metrics.CacheHitsTotal.WithLabelValues(cacheType).Inc()
-				metrics.ToolInvocationsTotal.WithLabelValues(t.Name, cacheStatus).Inc()
-				metrics.ToolLatency.WithLabelValues(t.Name).Observe(time.Since(start).Seconds())
-
-				reqLog.Info("tool call complete",
-					slog.Int("latency_ms", int(time.Since(start).Milliseconds())),
-					slog.String("cache_status", cacheStatus),
-					slog.String("cache_type", cacheType),
-				)
-				return mcp.NewToolResultText(string(entry.Response)), nil
-			}
-			metrics.CacheMissesTotal.Inc()
 		}
 
 		result, err := t.Execute(ctx, args, s.connector)
 		if err != nil {
-			metrics.ToolInvocationsTotal.WithLabelValues(t.Name, "ERROR").Inc()
-			reqLog.Error("tool call failed", slog.String("error", err.Error()), slog.Int("latency_ms", int(time.Since(start).Milliseconds())))
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-
-		// Caching Layer — WRITE (Store)
-		if s.cache != nil && t.Cache != nil && t.Cache.Enabled && !result.IsError {
-			respJSON, _ := json.Marshal(result.Result)
-			if err := s.cache.Set(ctx, t.Name, role, args, respJSON, *t.Cache); err != nil {
-				reqLog.Warn("failed to cache result", slog.String("error", err.Error()))
-			}
-		}
-
-		// Invalidation Layer — AUTO-FLUSH
-		if s.cache != nil && t.Cache != nil && len(t.Cache.FlushOn) > 0 && !result.IsError {
-			if err := s.cache.AutoFlush(ctx, t.Cache.FlushOn); err != nil {
-				reqLog.Warn("auto-flush failed", slog.String("error", err.Error()))
-			}
-		}
-
-		reqLog.Info("tool call complete",
-			slog.Int("latency_ms", int(time.Since(start).Milliseconds())),
-			slog.String("cache_status", cacheStatus),
-			slog.String("cache_type", cacheType),
-		)
-
-		metrics.ToolInvocationsTotal.WithLabelValues(t.Name, cacheStatus).Inc()
-		metrics.ToolLatency.WithLabelValues(t.Name).Observe(time.Since(start).Seconds())
 
 		// Convert result to mcp-go format
 		resultJSON, _ := json.Marshal(result.Result)
@@ -356,12 +352,9 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	start := time.Now()
-	reqID := logger.NewRequestID()
-
 	var req ToolCallRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.log.Error("bad request", slog.String("request_id", reqID), slog.String("error", err.Error()))
+		s.log.Error("bad request", slog.String("error", err.Error()))
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
@@ -371,74 +364,59 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	if !ok {
-		s.log.Warn("tool not found", slog.String("request_id", reqID), slog.String("tool_name", req.Name))
 		http.Error(w, "tool not found", http.StatusNotFound)
 		return
 	}
 
-	// Attach standard fields to the logger for this request
-	var role string // Extract from headers if present
-	reqLog := s.log.With(
-		slog.String("request_id", reqID),
-		slog.String("tool_name", t.Name),
-		slog.String("role", role),
-	)
-	ctx := logger.WithLogger(r.Context(), reqLog)
+	// Create a bridge to the MCP middleware chain
+	mcpReq := mcp.CallToolRequest{}
+	mcpReq.Params.Name = req.Name
+	mcpReq.Params.Arguments = req.Arguments
 
-	reqLog.Info("tool call received (direct)", slog.Any("arg_keys", logger.ArgKeys(req.Arguments)))
-	reqLog.Debug("tool call arguments (direct)", slog.Any("args", logger.Arguments(req.Arguments)))
-
-	// Caching Layer — READ
-	var cacheStatus = "MISS"
-	var cacheType = "none"
-	if s.cache != nil && t.Cache != nil && t.Cache.Enabled {
-		entry, err := s.cache.Get(ctx, t.Name, role, req.Arguments, *t.Cache)
-		if err == nil && entry != nil && entry.HitType != "miss" {
-			cacheStatus = "HIT"
-			cacheType = entry.HitType
-			reqLog.Info("tool call complete (direct)",
-				slog.Int("latency_ms", int(time.Since(start).Milliseconds())),
-				slog.String("cache_status", cacheStatus),
-				slog.String("cache_type", cacheType),
-			)
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-Cache-Hit", entry.HitType)
-			_ = json.NewEncoder(w).Encode(ToolResult{Result: entry.Response})
-			return
+	// Base handler for direct invoke
+	handler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args, _ := request.Params.Arguments.(map[string]any)
+		result, err := t.Execute(ctx, args, s.connector)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
+		resultJSON, _ := json.Marshal(result.Result)
+		return mcp.NewToolResultText(string(resultJSON)), nil
 	}
 
-	result, err := t.Execute(ctx, req.Arguments, s.connector)
+	// Apply tool-specific middlewares
+	handler = s.CacheMiddleware(t)(handler)
+
+	// Apply global middlewares
+	for i := len(s.toolMiddlewares) - 1; i >= 0; i-- {
+		handler = s.toolMiddlewares[i](handler)
+	}
+
+	// Execute through the middleware chain
+	mcpResult, err := handler(r.Context(), mcpReq)
 	if err != nil {
-		reqLog.Error("tool call failed (direct)", slog.String("error", err.Error()), slog.Int("latency_ms", int(time.Since(start).Milliseconds())))
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Caching Layer — WRITE (Store)
-	if s.cache != nil && t.Cache != nil && t.Cache.Enabled && !result.IsError {
-		respJSON, _ := json.Marshal(result.Result)
-		if err := s.cache.Set(ctx, t.Name, role, req.Arguments, respJSON, *t.Cache); err != nil {
-			reqLog.Warn("failed to cache result (direct)", slog.String("error", err.Error()))
-		}
-	}
-
-	// Invalidation Layer — AUTO-FLUSH
-	if s.cache != nil && t.Cache != nil && len(t.Cache.FlushOn) > 0 && !result.IsError {
-		if err := s.cache.AutoFlush(ctx, t.Cache.FlushOn); err != nil {
-			reqLog.Warn("auto-flush failed (direct)", slog.String("error", err.Error()))
-		}
-	}
-
-	reqLog.Info("tool call complete (direct)",
-		slog.Int("latency_ms", int(time.Since(start).Milliseconds())),
-		slog.String("cache_status", cacheStatus),
-		slog.String("cache_type", cacheType),
-	)
-
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(result)
+	if mcpResult.IsError {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": mcpResult.Content})
+		return
+	}
+
+	// Convert back to internal ToolResult for compatibility if needed,
+	// or just send the MCP result content.
+	// For bridgectl compatibility, we send ToolResult structure.
+	var result any
+	if len(mcpResult.Content) > 0 {
+		if text, ok := mcpResult.Content[0].(mcp.TextContent); ok {
+			_ = json.Unmarshal([]byte(text.Text), &result)
+		}
+	}
+
+	_ = json.NewEncoder(w).Encode(ToolResult{Result: result})
 }
 
 func (s *Server) handleCacheFlush(w http.ResponseWriter, r *http.Request) {
