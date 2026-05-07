@@ -132,8 +132,9 @@ func watchSchemas(s *mcp.Server, dir string) {
 	}
 	defer func() { _ = watcher.Close() }()
 
-	if err := watcher.Add(dir); err != nil {
-		slog.Error("failed to watch directory", slog.String("error", err.Error()), slog.String("directory", dir))
+	// Add recursive directories
+	if err := addRecursive(watcher, dir); err != nil {
+		slog.Error("failed to start recursive watch", slog.String("error", err.Error()), slog.String("directory", dir))
 		return
 	}
 
@@ -145,6 +146,16 @@ func watchSchemas(s *mcp.Server, dir string) {
 			if !ok {
 				return
 			}
+
+			// Handle directory creation for recursive watching
+			if event.Has(fsnotify.Create) {
+				info, err := os.Stat(event.Name)
+				if err == nil && info.IsDir() {
+					_ = addRecursive(watcher, event.Name)
+					continue
+				}
+			}
+
 			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
 				if filepath.Ext(event.Name) == ".json" {
 					slog.Info("schema change detected, reloading", slog.String("file", event.Name))
@@ -158,6 +169,21 @@ func watchSchemas(s *mcp.Server, dir string) {
 			slog.Error("watcher error", slog.String("error", err.Error()))
 		}
 	}
+}
+
+func addRecursive(watcher *fsnotify.Watcher, root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if err := watcher.Add(path); err != nil {
+				return err
+			}
+			slog.Debug("watching directory", slog.String("path", path))
+		}
+		return nil
+	})
 }
 
 func reloadTool(s *mcp.Server, path string) {
