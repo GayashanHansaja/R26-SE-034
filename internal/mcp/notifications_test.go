@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 	"github.com/nimendra/ERPBridge/internal/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -21,6 +22,40 @@ func (m *mockSession) NotificationChannel() chan<- mcp.JSONRPCNotification {
 	return m.notifications
 }
 func (m *mockSession) SessionID() string { return "mock-session" }
+
+func TestCustomNotifier(t *testing.T) {
+	s := server.NewMCPServer("test", "1.0.0")
+	notifier := NewCustomNotifier(s)
+
+	mSess := &mockSession{
+		notifications: make(chan mcp.JSONRPCNotification, 10),
+	}
+	ctx := s.WithContext(context.Background(), mSess)
+
+	t.Run("SendProgress", func(t *testing.T) {
+		notifier.SendProgress(ctx, 1, 10, "test")
+		n := <-mSess.notifications
+		assert.Equal(t, "notifications/progress", n.Method)
+		assert.Equal(t, 1, n.Params.AdditionalFields["progress"])
+		assert.Equal(t, 10, n.Params.AdditionalFields["total"])
+		assert.Equal(t, "test", n.Params.AdditionalFields["message"])
+	})
+
+	t.Run("SendAlert", func(t *testing.T) {
+		notifier.SendAlert(ctx, "alert msg", "high")
+		n := <-mSess.notifications
+		assert.Equal(t, "notifications/alert", n.Method)
+		assert.Equal(t, "alert msg", n.Params.AdditionalFields["message"])
+		assert.Equal(t, "high", n.Params.AdditionalFields["severity"])
+	})
+
+	t.Run("BroadcastSystemMessage", func(t *testing.T) {
+		// Mock session isn't added to the server's client map in a simple way.
+		// Sending broadcast uses SendNotificationToAllClients, but since no clients are registered normally,
+		// we just call it to ensure it doesn't panic.
+		notifier.BroadcastSystemMessage("sys msg")
+	})
+}
 
 func TestServer_NotificationsAndLogs(t *testing.T) {
 	// 1. Setup Logger
