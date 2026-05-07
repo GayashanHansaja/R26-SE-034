@@ -59,7 +59,7 @@ and supports multiple output formats including Table, JSON, and YAML.`,
 
 		formatter = &output.Formatter{
 			Format: output.Format(outputFormat),
-			Out:    os.Stdout,
+			Out:    cmd.OutOrStdout(),
 		}
 		return nil
 	},
