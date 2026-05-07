@@ -1,6 +1,7 @@
 package idp
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,7 +50,7 @@ paths:
 		Module: "finance",
 	}
 
-	tools, err := gen.GenerateFromOpenAPI(api, specPath)
+	tools, err := gen.GenerateFromOpenAPI(context.Background(), api, specPath)
 	assert.NoError(t, err)
 	assert.Len(t, tools, 1)
 	assert.Equal(t, "finance.getTest", tools[0].Name)

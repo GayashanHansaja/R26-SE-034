@@ -66,7 +66,7 @@ func (g *Generator) Generate(api API) (*mcp.Tool, error) {
 }
 
 // Task 2: OpenAPI Integration
-func (g *Generator) GenerateFromOpenAPI(api API, openapiURL string) ([]*mcp.Tool, error) {
+func (g *Generator) GenerateFromOpenAPI(ctx context.Context, api API, openapiURL string) ([]*mcp.Tool, error) {
 	loader := openapi3.NewLoader()
 	var doc *openapi3.T
 	var err error
@@ -79,7 +79,11 @@ func (g *Generator) GenerateFromOpenAPI(api API, openapiURL string) ([]*mcp.Tool
 		doc, err = loader.LoadFromURI(u)
 		if err != nil {
 			// Fallback: manually fetch if LoadFromURI fails
-			resp, httpErr := http.Get(openapiURL)
+			req, httpErr := http.NewRequestWithContext(ctx, http.MethodGet, openapiURL, nil)
+			if httpErr != nil {
+				return nil, fmt.Errorf("failed to create request: %w", httpErr)
+			}
+			resp, httpErr := http.DefaultClient.Do(req)
 			if httpErr != nil {
 				return nil, fmt.Errorf("failed to fetch openapi spec: %w", httpErr)
 			}
@@ -97,7 +101,7 @@ func (g *Generator) GenerateFromOpenAPI(api API, openapiURL string) ([]*mcp.Tool
 		return nil, fmt.Errorf("failed to load openapi spec: %w", err)
 	}
 
-	if err := doc.Validate(context.Background()); err != nil {
+	if err := doc.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("invalid openapi spec: %w", err)
 	}
 
