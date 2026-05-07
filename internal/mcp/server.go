@@ -28,7 +28,11 @@ type Server struct {
 }
 
 func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Logger) *Server {
-	s := server.NewMCPServer("ERPBridge", "1.0.0")
+	s := server.NewMCPServer("ERPBridge", "1.0.0",
+		server.WithLogging(),
+		server.WithResourceCompletionProvider(&ResourceCompletionProvider{}),
+		server.WithPromptCompletionProvider(&PromptCompletionProvider{}),
+	)
 	srv := &Server{
 		mcpServer: s,
 		connector: connector,
@@ -39,7 +43,54 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 		prompts:   make(map[string]*Prompt),
 	}
 
+	srv.startClientLogging()
+
 	return srv
+}
+
+func (s *Server) startClientLogging() {
+	ch := logger.Subscribe()
+	go func() {
+		for msg := range ch {
+			var entry struct {
+				Level string `json:"level"`
+				Msg   string `json:"msg"`
+			}
+			if err := json.Unmarshal(msg, &entry); err == nil {
+				var mcpLevel mcp.LoggingLevel
+				switch entry.Level {
+				case "DEBUG":
+					mcpLevel = mcp.LoggingLevelDebug
+				case "INFO":
+					mcpLevel = mcp.LoggingLevelInfo
+				case "WARN":
+					mcpLevel = mcp.LoggingLevelWarning
+				case "ERROR":
+					mcpLevel = mcp.LoggingLevelError
+				default:
+					mcpLevel = mcp.LoggingLevelInfo
+				}
+				notification := mcp.NewLoggingMessageNotification(mcpLevel, "mcp", entry.Msg)
+				_ = s.mcpServer.SendLogMessageToClient(context.Background(), notification)
+			}
+		}
+	}()
+}
+
+type ResourceCompletionProvider struct{}
+
+func (p *ResourceCompletionProvider) CompleteResourceArgument(ctx context.Context, uri string, argument mcp.CompleteArgument, context mcp.CompleteContext) (*mcp.Completion, error) {
+	return &mcp.Completion{
+		Values: []string{"recent-item-1", "recent-item-2"},
+	}, nil
+}
+
+type PromptCompletionProvider struct{}
+
+func (p *PromptCompletionProvider) CompletePromptArgument(ctx context.Context, name string, argument mcp.CompleteArgument, context mcp.CompleteContext) (*mcp.Completion, error) {
+	return &mcp.Completion{
+		Values: []string{"suggested-value-A", "suggested-value-B"},
+	}, nil
 }
 
 // RegisterResource adds a resource to the server.
@@ -47,7 +98,8 @@ func (s *Server) RegisterResource(r *Resource) {
 	s.mu.Lock()
 	s.resources[r.URITemplate] = r
 	s.mu.Unlock()
-	mcpResource := mcp.NewResource(r.Name, r.URITemplate,
+
+	mcpResource := mcp.NewResource(r.URITemplate, r.Name,
 		mcp.WithResourceDescription(r.Description),
 		mcp.WithMIMEType(r.MimeType),
 	)
@@ -72,6 +124,16 @@ func (s *Server) RegisterPrompt(p *Prompt) {
 	}
 	s.mcpServer.AddPrompt(mcpPrompt, s.handleMCPPromptGet)
 	s.log.Info("registered MCP prompt", slog.String("name", p.Name))
+}
+
+func (s *Server) handleMCPResourceComplete(ctx context.Context, request mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+	// Not used directly anymore, handled by provider
+	return nil, nil
+}
+
+func (s *Server) handleMCPPromptComplete(ctx context.Context, request mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+	// Not used directly anymore, handled by provider
+	return nil, nil
 }
 
 func (s *Server) handleMCPResourceRead(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
@@ -152,6 +214,9 @@ func (s *Server) RegisterTool(t *Tool) {
 	// Add tool to server with handler
 	s.mcpServer.AddTool(mcpTool, s.handleMCPToolCall(t.Name))
 	s.log.Info("registered MCP tool", slog.String("tool_name", t.Name))
+
+	// Notify clients that tools have changed
+	s.mcpServer.SendNotificationToAllClients("notifications/tools/list_changed", nil)
 }
 
 func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
@@ -246,6 +311,10 @@ func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 		resultJSON, _ := json.Marshal(result.Result)
 		return mcp.NewToolResultText(string(resultJSON)), nil
 	}
+}
+
+func (s *Server) MCPServer() *server.MCPServer {
+	return s.mcpServer
 }
 
 // ServeHTTP handles the SSE transport for mcp-go and a direct invocation endpoint for the CLI.
