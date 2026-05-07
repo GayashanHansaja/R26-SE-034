@@ -65,60 +65,27 @@ docker compose up -d --build
    ./bridgectl --help
    ```
 
-## Complete Guide
+## Documentation
 
-### 1. Overview
-ERPBridge acts as a translation layer between legacy ERP systems and modern AI agents. It exposes ERP functionality as MCP Tools, Resources, and Prompts, allowing LLMs to interact with complex business data through a standardized interface.
+Explore our comprehensive documentation in the [docs/](./docs) directory:
 
-### 2. Core Components
+- **[Documentation Wiki](./docs/README.md)**: Central hub for all guides.
+- **[Docker Deployment Guide](./docs/docker.md)**: Setup and manage ERPBridge with Docker.
+- **[Connectivity & Transport Guide](./docs/connectivity.md)**: SSE, Streamable HTTP, and Postman setup.
+- **[CLI Reference](./docs/cli/bridgectl.md)**: Detailed `bridgectl` command documentation.
+- **[AI Agent Integration](./AGENTS.md)**: Patterns for Claude, Cursor, and more.
 
-#### ERPBridge Server
-The ERPBridge Server service is an MCP Server implemented in Go. It:
-- **Discovers Tools**: Maps ERP API endpoints to MCP definitions with **Hot Reloading** support.
-- **Resilience**: Implements **Circuit Breaking** and **Intelligent Retries** to handle ERP instability.
-- **Advanced MCP**: Supports Tools (actions), **Resources** (read-only data), and **Prompts** (workflows).
-- **Semantic Caching**: Reduces ERP load using vector similarity matching.
+## Getting Started
 
-#### bridgectl
-The developer CLI for managing the ecosystem:
-- **`bridgectl doc`**: Generate comprehensive Markdown documentation for the CLI.
-- `bridgectl tool validate`: Pre-validate schemas or OpenAPI specs.
-- `bridgectl tool list/invoke`: List and test MCP tools.
-- `bridgectl api`: Explore raw ERP endpoints.
-- `bridgectl log`: Stream real-time middleware logs.
-- `bridgectl cache`: Manage and monitor semantic cache performance.
+### Prerequisites
+- Go 1.26.2+
+- Python 3.11+
+- Docker & Docker Compose
 
-### 3. Resilience & Reliability
-To protect against legacy system failures, the connector uses:
-- **Circuit Breaker**: Automatically trips (opens) if the ERP failure rate exceeds 60%, preventing cascading failures.
-- **Exponential Backoff**: Automatically retries transient errors (5xx, 429) up to 3 times with increasing delays.
+### Running with Docker (Recommended)
+The fastest way to get started is using Docker Compose. This starts the middleware, the mock ERP, Redis, and the embedding service.
 
-### 4. Observability
-- **Prometheus Metrics**: High-resolution metrics for latency, request counts, and error rates are available at `:8080/metrics`.
-- **Cache Dashboard**: Real-time stats on exact vs. semantic hits are exposed via `bridgectl cache stats` or `/api/cache/stats`.
-- **Structured Logging**: All requests carry a unique `request_id` for end-to-end tracing.
-
-### 5. CLI Documentation
-Comprehensive documentation for all `bridgectl` commands is available in the [docs/cli](./docs/cli) directory. You can regenerate this documentation at any time by running:
 ```bash
-go run tools/bridgectl/main.go doc
+docker compose up -d --build
 ```
-
-### 6. Semantic Caching
-ERPBridge features a two-layer caching strategy:
-1.  **Exact Match**: Keyed by a hash of tool arguments.
-2.  **Semantic Fallback**: Uses vector embeddings to find similar previous requests based on a similarity threshold (default: 0.95).
-
-### 7. Connectivity & AI Agent Integration
-ERPBridge supports multiple transport protocols for different client types:
-- **Postman & Web**: Streamable HTTP at `http://localhost:8080/mcp/`.
-- **AI Agents (Claude/Cursor)**: SSE at `http://localhost:8080/mcp/sse`.
-
-See the comprehensive [Connectivity & Transport Guide](./docs/connectivity.md) and [AGENTS.md](./AGENTS.md) for detailed integration patterns.
-
-### 8. Development Flow
-1.  **Schema Hot-Reload**: Modify any JSON schema in `schemas/`; the middleware reloads it instantly.
-2.  **Validation**: Use `bridgectl tool validate schemas/finance/invoices.json` before deploying.
-
-## License
-MIT
+See the [Docker Deployment Guide](./docs/docker.md) for detailed configuration.
