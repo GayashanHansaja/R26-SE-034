@@ -32,6 +32,8 @@ type Tool struct {
 	Endpoint *Endpoint `json:"endpoint,omitempty"`
 	// Cache defines the caching strategy for this tool.
 	Cache *cache.Config `json:"cache,omitempty"`
+	// Handler is an optional native Go function to handle the tool call.
+	Handler func(ctx context.Context, args map[string]any) (*ToolResult, error) `json:"-"`
 }
 
 // InputSchema defines the structure of arguments required by a tool.
@@ -86,8 +88,12 @@ type ERPConnector interface {
 	Call(ctx context.Context, ep connector.EndpointConfig, queryParams url.Values, body io.Reader) (*http.Response, error)
 }
 
-// Execute performs the actual tool invocation by calling the underlying ERP API.
+// Execute performs the actual tool invocation by calling either a native handler or the underlying ERP API.
 func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnector) (*ToolResult, error) {
+	if t.Handler != nil {
+		return t.Handler(ctx, args)
+	}
+
 	if t.Endpoint == nil {
 		return nil, fmt.Errorf("tool %s has no endpoint configuration", t.Name)
 	}

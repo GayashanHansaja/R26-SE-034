@@ -46,6 +46,7 @@ func GetRecentLogs() [][]byte {
 
 type broadcastHandler struct {
 	slog.Handler
+	attrs []slog.Attr
 }
 
 func (h *broadcastHandler) Handle(ctx context.Context, r slog.Record) error {
@@ -57,8 +58,13 @@ func (h *broadcastHandler) Handle(ctx context.Context, r slog.Record) error {
 	defer listenersMu.Unlock()
 
 	var buf strings.Builder
-	jsonHandler := slog.NewJSONHandler(&buf, nil)
-	if err := jsonHandler.Handle(ctx, r); err == nil {
+	// Create a JSON handler that already has the attributes from WithAttrs
+	var h2 slog.Handler = slog.NewJSONHandler(&buf, nil)
+	if len(h.attrs) > 0 {
+		h2 = h2.WithAttrs(h.attrs)
+	}
+
+	if err := h2.Handle(ctx, r); err == nil {
 		msg := []byte(buf.String())
 
 		// Add to buffer
@@ -78,6 +84,22 @@ func (h *broadcastHandler) Handle(ctx context.Context, r slog.Record) error {
 		}
 	}
 	return err
+}
+
+func (h *broadcastHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &broadcastHandler{
+		Handler: h.Handler.WithAttrs(attrs),
+		attrs:   append(append([]slog.Attr{}, h.attrs...), attrs...),
+	}
+}
+
+func (h *broadcastHandler) WithGroup(name string) slog.Handler {
+	// For simplicity, we'll just ignore groups in the broadcast for now or handle them simply.
+	// Groups are more complex to merge.
+	return &broadcastHandler{
+		Handler: h.Handler.WithGroup(name),
+		attrs:   h.attrs,
+	}
 }
 
 // Init creates the root logger based on APP_ENV and LOG_LEVEL.
