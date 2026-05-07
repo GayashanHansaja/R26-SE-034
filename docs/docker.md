@@ -41,7 +41,7 @@ volumes:
   - ./schemas:/app/schemas
 ```
 
-**Hot Reloading:** You can generate or modify tool schemas locally using `bridgectl`, and the server inside the container will automatically detect and register them without a restart.
+**Hot Reloading:** You can generate or modify tool schemas locally using `bridgectl`, and the server inside the container will automatically detect and register them without a restart. The server recursively watches the `schemas/` directory, meaning changes in subdirectories (e.g., `schemas/erp/`, `schemas/test/`) are fully supported.
 
 ## 4. Using bridgectl with Docker
 
