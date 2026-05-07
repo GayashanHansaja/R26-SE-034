@@ -3,8 +3,8 @@ package logger
 
 import "strings"
 
-// SensitiveKeys lists argument keys whose values are always redacted
-var SensitiveKeys = map[string]bool{
+// sensitiveKeys lists argument keys whose values are always redacted
+var sensitiveKeys = map[string]bool{
 	"password":      true,
 	"token":         true,
 	"api_key":       true,
@@ -19,7 +19,7 @@ var SensitiveKeys = map[string]bool{
 func Arguments(args map[string]any) map[string]any {
 	safe := make(map[string]any, len(args))
 	for k, v := range args {
-		if SensitiveKeys[strings.ToLower(k)] {
+		if sensitiveKeys[strings.ToLower(k)] {
 			safe[k] = "[REDACTED]"
 		} else {
 			safe[k] = v
