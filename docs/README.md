@@ -25,6 +25,6 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 ## 🛡 System Features
 
 - **Resilience**: Circuit breakers and retry logic (see [README](../README.md#3-resilience--reliability)).
-- **Semantic Caching**: Efficient vector-based search for ERP responses (see [README](../README.md#6-semantic-caching)).
+- **[Semantic Caching](./caching.md)**: Efficient vector-based search for ERP responses.
 - **Secure Logging**: Real-time log streaming with automatic PII/Secret redaction and RFC 5424 level control.
 - **Hot Reloading**: Instant schema updates without downtime (see [README](../README.md#8-development-flow)).
