@@ -1,7 +1,4 @@
-version: "3.9"
-
 services:
-
   mock-erp:
     build:
       context: ./mock-erp
@@ -10,16 +7,27 @@ services:
     environment:
       - LOG_LEVEL=debug
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health').read()"]
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8081/health').read()",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
 
   embedder:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
-    command: --model-id nomic-ai/nomic-embed-text-v1 --port 8083
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+
+    command: >
+      --model-id sentence-transformers/all-MiniLM-L6-v2
+      --port 8083
+
     ports:
       - "8083:8083"
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
       interval: 15s
@@ -30,7 +38,7 @@ services:
     image: redis/redis-stack:7.2.0-v9
     ports:
       - "6379:6379"
-      - "8001:8001"   # RedisInsight — remove in production
+      - "8001:8001" # RedisInsight — remove in production
     volumes:
       - redis-data:/data
     healthcheck:
@@ -47,6 +55,8 @@ services:
     environment:
       - BASE_URL=http://localhost:8080
       - ERP_BASE_URL=http://mock-erp:8081
+      - REDIS_URL=redis://redis:6379
+      - EMBEDDER_URL=http://embedder:8083
     volumes:
       - ./schemas:/app/schemas
     depends_on:
