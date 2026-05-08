@@ -1,0 +1,41 @@
+{
+  "name": "erp.GET-resource-Purchase Invoice-{name}",
+  "description": "Retrieve the full details of a single purchase invoice by its unique name (e.g., ACC-PINV-2026-00001).",
+  "module": "erp",
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 3600,
+    "semanticThreshold": 0.85,
+    "isReadOnly": true
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "outputSchema": {
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/PurchaseInvoice"
+      }
+    },
+    "type": "object"
+  },
+  "endpoint": {
+    "method": "GET",
+    "path": "http://localhost:8081/api/resource/Purchase Invoice/{name}",
+    "auth": {
+      "type": "api-key",
+      "header": "Authorization",
+      "keyRef": "token adm_key_001:adm_sec_stu901",
+      "username": "",
+      "token": ""
+    }
+  }
+}

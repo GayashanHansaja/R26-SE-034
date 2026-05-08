@@ -1,0 +1,41 @@
+{
+  "name": "erp.GET-resource-Bin",
+  "description": "Query current stock levels (actual, reserved, ordered) across all warehouses (optionally filter by item_code,etc).",
+  "module": "erp",
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 3600,
+    "semanticThreshold": 0.85,
+    "isReadOnly": true
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "filters": {
+        "type": "string"
+      }
+    }
+  },
+  "outputSchema": {
+    "properties": {
+      "data": {
+        "items": {
+          "$ref": "#/components/schemas/Bin"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "endpoint": {
+    "method": "GET",
+    "path": "http://localhost:8081/api/resource/Bin",
+    "auth": {
+      "type": "api-key",
+      "header": "Authorization",
+      "keyRef": "token adm_key_001:adm_sec_stu901",
+      "username": "",
+      "token": ""
+    }
+  }
+}

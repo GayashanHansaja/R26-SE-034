@@ -1,0 +1,37 @@
+{
+  "name": "erp.GET-resource-Payment Entry",
+  "description": "Get a list of all payment entries, including their status, payment mode, and linked invoices.",
+  "module": "erp",
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 3600,
+    "semanticThreshold": 0.85,
+    "isReadOnly": true
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "outputSchema": {
+    "properties": {
+      "data": {
+        "items": {
+          "$ref": "#/components/schemas/PaymentEntry"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "endpoint": {
+    "method": "GET",
+    "path": "http://localhost:8081/api/resource/Payment Entry",
+    "auth": {
+      "type": "api-key",
+      "header": "Authorization",
+      "keyRef": "token adm_key_001:adm_sec_stu901",
+      "username": "",
+      "token": ""
+    }
+  }
+}

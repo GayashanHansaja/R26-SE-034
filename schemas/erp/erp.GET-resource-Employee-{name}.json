@@ -1,0 +1,41 @@
+{
+  "name": "erp.GET-resource-Employee-{name}",
+  "description": "Retrieve detailed profile information for a specific employee by name (e.g., EMP-00001).",
+  "module": "erp",
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 3600,
+    "semanticThreshold": 0.85,
+    "isReadOnly": true
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "outputSchema": {
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/Employee"
+      }
+    },
+    "type": "object"
+  },
+  "endpoint": {
+    "method": "GET",
+    "path": "http://localhost:8081/api/resource/Employee/{name}",
+    "auth": {
+      "type": "api-key",
+      "header": "Authorization",
+      "keyRef": "token adm_key_001:adm_sec_stu901",
+      "username": "",
+      "token": ""
+    }
+  }
+}

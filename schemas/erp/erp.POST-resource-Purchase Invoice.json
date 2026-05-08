@@ -1,0 +1,62 @@
+{
+  "name": "erp.POST-resource-Purchase Invoice",
+  "description": "Create a new purchase invoice draft in the finance module (requires finance_editor role).",
+  "module": "erp",
+  "cache": {
+    "enabled": false,
+    "flushOn": [
+      "erp.GET-resource-Purchase Invoice"
+    ]
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "docstatus": {
+        "type": "integer"
+      },
+      "doctype": {
+        "type": "string"
+      },
+      "grand_total": {
+        "type": "number"
+      },
+      "items": {
+        "type": "array"
+      },
+      "name": {
+        "type": "string"
+      },
+      "posting_date": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "supplier": {
+        "type": "string"
+      },
+      "supplier_name": {
+        "type": "string"
+      }
+    }
+  },
+  "outputSchema": {
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/PurchaseInvoice"
+      }
+    },
+    "type": "object"
+  },
+  "endpoint": {
+    "method": "POST",
+    "path": "http://localhost:8081/api/resource/Purchase Invoice",
+    "auth": {
+      "type": "api-key",
+      "header": "Authorization",
+      "keyRef": "token adm_key_001:adm_sec_stu901",
+      "username": "",
+      "token": ""
+    }
+  }
+}
