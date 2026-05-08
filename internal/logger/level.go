@@ -54,6 +54,8 @@ func MCPToSlog(level mcp.LoggingLevel) slog.Level {
 		return LevelNotice
 	case mcp.LoggingLevelInfo:
 		return slog.LevelInfo
+	case mcp.LoggingLevelDebug:
+		return slog.LevelDebug
 	default:
 		return slog.LevelDebug
 	}
