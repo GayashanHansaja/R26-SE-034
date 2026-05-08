@@ -18,7 +18,7 @@ func NewHFEmbedder(baseURL string) *HFEmbedder {
 	return &HFEmbedder{baseURL: baseURL, client: &http.Client{}}
 }
 
-func (e *HFEmbedder) Dim() int { return 768 }
+func (e *HFEmbedder) Dim() int { return 384 }
 
 func (e *HFEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
 	// Prepend task instruction for nomic-embed-text-v1

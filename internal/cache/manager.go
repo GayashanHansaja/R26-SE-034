@@ -118,7 +118,7 @@ func (m *Manager) Set(ctx context.Context, tool, role string, args map[string]an
 
 	// Exact cache
 	key := exactKey(tool, roleKey, args)
-	if err := m.rdb.Set(ctx, key, response, ttl).Err(); err != nil {
+	if err := m.rdb.Set(ctx, key, []byte(response), ttl).Err(); err != nil {
 		log.Error("redis error", slog.String("operation", "SET"), slog.String("error", err.Error()))
 		return fmt.Errorf("exact cache set: %w", err)
 	}
