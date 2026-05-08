@@ -1,91 +1,118 @@
-# ERP AI Middleware
+# ERPBridge: AI-to-ERP Model Context Protocol (MCP) Middleware
 
-Middleware for bridging legacy ERP systems with Agentic AI using the Model Context Protocol (MCP).
+[![Go Version](https://img.shields.io/badge/Go-1.26.2+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Python Version](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python)](https://www.python.org/)
+[![MCP Protocol](https://img.shields.io/badge/MCP-2025--03--26-blue)](https://modelcontextprotocol.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Architecture
+**ERPBridge** is a high-performance middleware that bridges legacy Enterprise Resource Planning (ERP) systems with Agentic AI. By leveraging the **Model Context Protocol (MCP)**, it transforms complex ERP APIs into discoverable, type-safe tools that AI agents (such as Claude, Cursor, or custom LLM chains) can interact with seamlessly.
 
-- **mock-erp/**: Temporary Python FastAPI service simulating legacy ERP modules (Finance, HR, Inventory).
-- **services/erpbridge-server/**: Go-based MCP Server (HTTP/Stdio) + ERP Connector.
-- **tools/bridgectl/**: Go CLI for developers and AI agents to manage APIs and tools.
-- **internal/**: Shared Go libraries for configuration, protocol handling, and I/O.
+## 🚀 Key Features
 
-## Packages
+- **Model Context Protocol (MCP) Native**: Built from the ground up to support the latest MCP specifications.
+- **Semantic Caching**: AI-optimized caching layer using Redis and vector embeddings to minimize redundant ERP API hits and improve response latency.
+- **Resilience & Fault Tolerance**: Hardened with circuit breakers (Sony/GoBreaker) and intelligent retry logic (Avast/Retry-Go) to handle the instability of legacy systems.
+- **Multi-Transport Support**: 
+    - **Streamable HTTP**: Ideal for remote agents and web-based integrations.
+    - **Stdio**: Native integration for local IDEs and CLI-based agents.
+- **Developer-Centric CLI (`bridgectl`)**: A powerful tool for environment management, schema validation, tool invocation, and real-time monitoring.
+- **Metrics & Monitoring**: Native Prometheus integration for tracking performance and health.
 
-| Package | Type | Binary Name | Description |
-| :--- | :--- | :--- | :--- |
-| **ERPBridge Server** | Service | `erpbridge-server` | The core MCP Server. Handles ERP connections, resilience, and semantic caching. |
-| **bridgectl** | CLI | `bridgectl` | Developer tool for environment management, schema validation, and real-time monitoring. |
+## 🏗️ Project Architecture
 
-## Key Differences
+```mermaid
+graph TD
+    A[AI Agent / IDE] -->|MCP| B(ERPBridge Server)
+    B -->|Semantic Cache| C[(Redis)]
+    B -->|Tool Execution| D{ERP Connector}
+    D --> E[Mock ERP / Legacy ERP]
+    F[bridgectl CLI] -->|Management| B
+```
 
-| Feature | ERPBridge Server | bridgectl |
-| :--- | :--- | :--- |
-| **Primary Role** | Runtime execution and protocol bridging. | Development, debugging, and management. |
-| **Connectivity** | Connects to Redis and Legacy ERP APIs. | Connects to ERPBridge Server API. |
-| **Lifecycle** | Long-running daemon (Docker/Kubernetes). | Short-lived command execution. |
-| **Interface** | HTTP (for agents) / Stdio. | Standard Output (Table/JSON/YAML). |
-| **State** | Manages semantic cache and circuit breakers. | Stateless; reads configuration from `~/.erpbridge.yaml`. |
+- **`services/erpbridge-server/`**: The core Go service acting as the MCP gateway.
+- **`mock-erp/`**: A Python FastAPI service simulating legacy ERP modules (Finance, HR, Inventory) for development and testing.
+- **`tools/bridgectl/`**: Management CLI for developers and AI agents.
+- **`internal/`**: Optimized Go libraries for configuration, protocol handling, caching, and resilience.
 
-## Stack
-- **Go**: 1.26.2
-- **Python**: 3.11+
-- **MCP Library**: [mark3labs/mcp-go](https://github.com/mark3labs/mcp-go)
-- **Database**: Redis (for Semantic Caching)
-- **Monitoring**: Prometheus (Metrics)
-- **Resilience**: Sony/GoBreaker & Avast/Retry-Go
-
-## Getting Started
+## 🛠️ Getting Started
 
 ### Prerequisites
-- Go 1.26.2+
-- Python 3.11+
-- Docker & Docker Compose
-- Redis (with RediSearch module)
 
-### Running the Full Stack
+- **Go**: 1.26.2+
+- **Python**: 3.11+ (managed via `uv` is recommended)
+- **Docker & Docker Compose**: For containerized deployment.
+- **Redis**: Required for semantic caching (requires the RediSearch module).
+
+### Quick Start (Docker)
+
+The fastest way to spin up the entire stack is using Docker Compose:
+
 ```bash
 docker compose up -d --build
 ```
 
-### Manual Build & Run
-1. **Mock ERP**:
+This will launch:
+- **ERPBridge Server**: `http://localhost:8080`
+- **Mock ERP**: `http://localhost:8000`
+- **Redis**: Port `6379` (with RediSearch)
+
+### Local Development
+
+1. **Start the Mock ERP**:
    ```bash
    cd mock-erp
    uv run main.py
    ```
 
-2. **ERPBridge Server**:
+2. **Run ERPBridge Server**:
    ```bash
    go run services/erpbridge-server/main.go
    ```
 
-3. **bridgectl**:
+3. **Install `bridgectl`**:
    ```bash
-   go build -o bridgectl tools/bridgectl/main.go
-   ./bridgectl --help
+   go install ./tools/bridgectl
    ```
 
-## Documentation
+## 🔌 AI Integration
 
-Explore our comprehensive documentation in the [docs/](./docs) directory:
-
-- **[Documentation Wiki](./docs/README.md)**: Central hub for all guides.
-- **[Docker Deployment Guide](./docs/docker.md)**: Setup and manage ERPBridge with Docker.
-- **[Connectivity & Transport Guide](./docs/connectivity.md)**: Streamable HTTP, Stdio, and Postman setup.
-- **[CLI Reference](./docs/cli/bridgectl.md)**: Detailed `bridgectl` command documentation.
-- **[AI Agent Integration](./AGENTS.md)**: Patterns for Claude, Cursor, and more.
-
-## Getting Started
-
-### Prerequisites
-- Go 1.26.2+
-- Python 3.11+
-- Docker & Docker Compose
-
-### Running with Docker (Recommended)
-The fastest way to get started is using Docker Compose. This starts the middleware, the mock ERP, Redis, and the embedding service.
-
+### Local Agents (Claude/Cursor)
+Configure your agent to use the Stdio transport via `bridgectl`:
 ```bash
-docker compose up -d --build
+bridgectl serve --stdio
 ```
-See the [Docker Deployment Guide](./docs/docker.md) for detailed configuration.
+
+### Remote / Web Clients
+Connect via Streamable HTTP:
+- **Base URL**: `http://localhost:8080/mcp/`
+- **Transport**: MCP 2025-03-26
+
+For detailed setup instructions, including Postman collections, see the [Connectivity & Transport Guide](./docs/connectivity.md).
+
+## 📚 Documentation
+
+- [**Documentation Wiki**](./docs/README.md) - Central hub for all guides.
+- [**CLI Reference**](./docs/cli/bridgectl.md) - Detailed `bridgectl` command documentation.
+- [**AI Agent Guide**](./AGENTS.md) - Best practices for agentic integration.
+- [**Docker Deployment**](./docs/docker.md) - Production-ready deployment strategies.
+
+## 🛠️ Development & Contributing
+
+### Testing
+Run the full test suite:
+```bash
+go test ./...
+```
+
+### Quality Control
+We enforce high standards using `golangci-lint` and `lefthook` for pre-commit checks.
+```bash
+# Install hooks
+lefthook install
+
+# Run linting manually
+golangci-lint run
+```
+
+---
+Built with ❤️ for the AI Engineering community.
