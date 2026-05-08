@@ -40,11 +40,17 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 		server.WithPromptCompletionProvider(&PromptCompletionProvider{}),
 	)
 
+	mcpHandler := logger.NewMCPHandler(s, "mcp")
+	mcpLog := slog.New(logger.MultiHandler{
+		logger.Component(rootLog, "mcp").Handler(),
+		mcpHandler,
+	})
+
 	srv := &Server{
 		mcpServer: s,
 		connector: connector,
 		cache:     cacheMgr,
-		log:       logger.Component(rootLog, "mcp"),
+		log:       mcpLog,
 		tools:     make(map[string]*Tool),
 		resources: make(map[string]*Resource),
 		prompts:   make(map[string]*Prompt),
@@ -57,7 +63,6 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 		MetricsMiddleware(),
 	}
 
-	srv.startClientLogging()
 	srv.RegisterBuiltinTools()
 
 	return srv
@@ -104,35 +109,42 @@ func (s *Server) RegisterBuiltinTools() {
 			}, nil
 		},
 	})
-}
 
-func (s *Server) startClientLogging() {
-	ch := logger.Subscribe()
-	go func() {
-		for msg := range ch {
-			var entry struct {
-				Level string `json:"level"`
-				Msg   string `json:"msg"`
-			}
-			if err := json.Unmarshal(msg, &entry); err == nil {
-				var mcpLevel mcp.LoggingLevel
-				switch entry.Level {
-				case "DEBUG":
-					mcpLevel = mcp.LoggingLevelDebug
-				case "INFO":
-					mcpLevel = mcp.LoggingLevelInfo
-				case "WARN":
-					mcpLevel = mcp.LoggingLevelWarning
-				case "ERROR":
-					mcpLevel = mcp.LoggingLevelError
-				default:
-					mcpLevel = mcp.LoggingLevelInfo
-				}
-				notification := mcp.NewLoggingMessageNotification(mcpLevel, "mcp", entry.Msg)
-				_ = s.mcpServer.SendLogMessageToClient(context.Background(), notification)
-			}
-		}
-	}()
+	s.RegisterTool(&Tool{
+		Name:        "system.sensitive_log_test",
+		Description: "A demonstration tool that logs sensitive data to verify redaction.",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"token": {
+					Type:        "string",
+					Description: "A sensitive token that should be redacted.",
+				},
+				"message": {
+					Type:        "string",
+					Description: "A normal message.",
+				},
+			},
+		},
+		Handler: func(ctx context.Context, args map[string]any) (*ToolResult, error) {
+			token, _ := args["token"].(string)
+			msg, _ := args["message"].(string)
+
+			// Log using the composite logger which includes MCPHandler
+			s.log.Info("Sensitive data received",
+				slog.String("token", token), // Should be redacted by field name
+				slog.String("message", msg), // Should be preserved
+				slog.Any("raw_args", args),  // Should be redacted by keys in map
+			)
+
+			return &ToolResult{
+				Result: map[string]any{
+					"status":  "success",
+					"message": "Logs emitted. Check your MCP client logs.",
+				},
+			}, nil
+		},
+	})
 }
 
 // ResourceCompletionProvider implements the mcp-go completion provider for resources.
