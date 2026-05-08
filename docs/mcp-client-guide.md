@@ -16,7 +16,8 @@
 8. [TypeScript Client — Stdio](#8-typescript-client--stdio)
 9. [Error Handling](#9-error-handling)
 10. [Troubleshooting](#10-troubleshooting)
-11. [Quick Reference Cheat Sheet](#11-quick-reference-cheat-sheet)
+11. [Logging & Redaction](#11-logging--redaction)
+12. [Quick Reference Cheat Sheet](#12-quick-reference-cheat-sheet)
 
 ---
 
@@ -705,7 +706,59 @@ You don't need SSE for basic tool calls to work.
 
 ---
 
-## 11. Quick Reference Cheat Sheet
+## 11. Logging & Redaction
+
+ERPBridge implements standard MCP logging via `notifications/message`. This allows servers to push real-time logs to clients, which is useful for debugging tool execution.
+
+### 11.1 Setting the Log Level
+Clients can control server-side verbosity by calling `logging/setLevel`.
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "logging/setLevel",
+  "params": {
+    "level": "debug"
+  }
+}
+```
+
+Available levels (RFC 5424): `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`.
+
+### 11.2 Receiving Logs
+Logs are sent as notifications from the server. If using **Streamable HTTP**, these arrive via the **SSE stream** (GET request). If using **Stdio**, they are printed to `stdout` as JSON-RPC notifications.
+
+**Example Notification:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/message",
+  "params": {
+    "level": "info",
+    "logger": "mcp",
+    "data": {
+      "msg": "tool execution completed",
+      "tool_name": "erp.GET-resource-Employee",
+      "duration": "145ms"
+    }
+  }
+}
+```
+
+### 11.3 Automatic Redaction
+For security, ERPBridge automatically redacts sensitive data from all logs sent to clients. This includes:
+- **API Keys & Tokens**
+- **Passwords**
+- **PII (Emails, Phone Numbers)**
+- **Authorization Headers**
+
+Redacted fields will appear as `[REDACTED]` in the log payload. Full, unredacted logs are only available on the server console/logs.
+
+---
+
+## 12. Quick Reference Cheat Sheet
 
 ### JSON-RPC Message Template
 

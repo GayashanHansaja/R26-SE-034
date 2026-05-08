@@ -12,6 +12,7 @@
 - **Model Context Protocol (MCP) Native**: Built from the ground up to support the latest MCP specifications.
 - **Semantic Caching**: AI-optimized caching layer using Redis and vector embeddings to minimize redundant ERP API hits and improve response latency.
 - **Resilience & Fault Tolerance**: Hardened with circuit breakers (Sony/GoBreaker) and intelligent retry logic (Avast/Retry-Go) to handle the instability of legacy systems.
+- **Secure Log Streaming**: Real-time structured log streaming to MCP clients with automatic redaction of sensitive data (API keys, passwords, PII) using `masq` and RFC 5424 level control.
 - **Multi-Transport Support**: 
     - **Streamable HTTP**: Ideal for remote agents and web-based integrations.
     - **Stdio**: Native integration for local IDEs and CLI-based agents.
