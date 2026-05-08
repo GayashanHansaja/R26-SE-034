@@ -7,7 +7,7 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 - **[Overview & Architecture](../README.md)**: High-level introduction to ERPBridge and its core components.
 - **[Docker Deployment Guide](./docker.md)**: Detailed instructions for running the full stack using Docker Compose.
 - **[Connectivity & Transport Guide](./connectivity.md)**: Understanding SSE, Streamable HTTP, and Direct API transports.
-- **[AI Agent Integration](../../AGENTS.md)**: Specific patterns for connecting Claude, Cursor, and other agents.
+- **[AI Agent Integration](../AGENTS.md)**: Specific patterns for connecting Claude, Cursor, and other agents.
 
 ## 🛠 Developer Resources
 
@@ -20,6 +20,7 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 
 - **[Postman Integration](./connectivity.md#postman-configuration)**: Testing MCP endpoints with Postman.
 - **[Mock ERP Setup](../mock-erp/README.md)**: Details about the simulated legacy ERP service.
+- **[MCP Client Implementation Guide](../docs/mcp-client-guide.md)**: Detailed Guide to Implement MCP Client Use with This MCP Server
 
 ## 🛡 System Features
 
