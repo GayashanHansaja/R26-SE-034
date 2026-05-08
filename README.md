@@ -114,5 +114,3 @@ lefthook install
 golangci-lint run
 ```
 
----
-Built with ❤️ for the AI Engineering community.
