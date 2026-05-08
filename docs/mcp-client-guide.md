@@ -14,22 +14,26 @@
 6. [Python Client — Stdio](#6-python-client--stdio)
 7. [TypeScript Client — Streamable HTTP](#7-typescript-client--streamable-http)
 8. [TypeScript Client — Stdio](#8-typescript-client--stdio)
-9. [Error Handling](#9-error-handling)
-10. [Troubleshooting](#10-troubleshooting)
-11. [Logging & Redaction](#11-logging--redaction)
-12. [Quick Reference Cheat Sheet](#12-quick-reference-cheat-sheet)
+9. [Working with Resources](#9-working-with-resources)
+10. [Working with Prompts](#10-working-with-prompts)
+11. [Completion & Suggestions](#11-completion--suggestions)
+12. [Hot Reloading](#12-hot-reloading)
+13. [Error Handling](#13-error-handling)
+14. [Troubleshooting](#14-troubleshooting)
+15. [Logging & Redaction](#15-logging--redaction)
+16. [Quick Reference Cheat Sheet](#16-quick-reference-cheat-sheet)
 
 ---
 
 ## 1. What is MCP?
 
-**MCP (Model Context Protocol)** is a standard protocol that lets clients call tools exposed by a server — similar to calling a REST API, but designed for AI and automation workflows.
+**MCP (Model Context Protocol)** is a standard protocol that lets clients call tools, read resources, and use prompts exposed by a server — designed for AI and automation workflows.
 
 In this guide, the server is **ERPBridge**, which exposes business tools (like listing invoices) over MCP. Your job as a client is to:
 
 1. **Connect** to the server and start a session.
-2. **Discover** which tools are available.
-3. **Call** those tools and receive results.
+2. **Discover** which tools, resources, and prompts are available.
+3. **Interact** with them and receive results.
 
 All communication uses **JSON-RPC 2.0** — a simple, human-readable message format.
 
@@ -117,6 +121,9 @@ Client                          ERPBridge Server
   |--- POST /mcp/ (tools/list) ------->|   ← Include session ID
   |<-- List of available tools --------|
   |                                    |
+  |--- POST /mcp/ (resources/list) ---->|
+  |<-- List of available resources ----|
+  |                                    |
   |--- POST /mcp/ (tools/call) ------->|   ← Call a specific tool
   |<-- Tool result ------------------- |
   |                                    |
@@ -135,56 +142,18 @@ Send an `initialize` request first. The server replies with a `Mcp-Session-Id` h
   "method": "initialize",
   "params": {
     "protocolVersion": "2024-11-05",
-    "capabilities": {},
+    "capabilities": {
+      "logging": {},
+      "prompts": {},
+      "resources": {},
+      "tools": {}
+    },
     "clientInfo": { "name": "my-client", "version": "0.1.0" }
   }
 }
 ```
 
 > **Why is the session ID important?** The server uses it to associate your requests with your session. Without it, subsequent calls will fail.
-
-### 4.2 Step 2 — List Available Tools
-
-```json
-{ "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {} }
-```
-
-This returns a list of tool names and their descriptions. Always call this before `tools/call` to confirm the exact tool name.
-
-### 4.3 Step 3 — Call a Tool
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "method": "tools/call",
-  "params": {
-    "name": "finance.list_invoices_api_v1_finance_invoices_get",
-    "arguments": {}
-  }
-}
-```
-
-> **Important:** The tool name must match exactly what `tools/list` returned — including underscores and casing.
-
-### 4.4 Step 4 (Optional) — Subscribe to Notifications
-
-Open a `GET` request with `Accept: text/event-stream` to receive real-time server-sent events:
-
-```
-GET /mcp/
-Accept: text/event-stream
-Mcp-Session-Id: <your-session-id>
-```
-
-Notification types you may receive:
-
-| Notification | Meaning |
-|---|---|
-| `notifications/progress` | A long-running tool is reporting progress |
-| `notifications/message` | A log message from the server |
-| `notifications/alert` | An important alert or warning |
-| `notifications/tools/list_changed` | Available tools have changed |
 
 ---
 
@@ -207,7 +176,7 @@ init_payload = {
     "method": "initialize",
     "params": {
         "protocolVersion": "2024-11-05",
-        "capabilities": {},
+        "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
         "clientInfo": {"name": "python-client", "version": "0.1.0"},
     },
 }
@@ -258,49 +227,6 @@ print("\nTool result:")
 print(json.dumps(result, indent=2))
 ```
 
-### 5.2 Calling Tools With Arguments
-
-Some tools require arguments. Pass them as a dictionary in the `arguments` field:
-
-```python
-call_resp = session.post(
-    BASE_URL,
-    headers=headers,
-    json={
-        "jsonrpc": "2.0",
-        "id": 4,
-        "method": "tools/call",
-        "params": {
-            "name": "finance.get_invoice",
-            "arguments": {
-                "invoice_id": "INV-2024-001",
-                "include_line_items": True,
-            },
-        },
-    },
-)
-result = call_resp.json()
-```
-
-### 5.3 Receiving Notifications (SSE)
-
-```python
-import sseclient  # pip install sseclient-py
-
-with session.get(
-    BASE_URL,
-    headers={
-        "Accept": "text/event-stream",
-        "Mcp-Session-Id": session_id,
-    },
-    stream=True,
-) as resp:
-    client = sseclient.SSEClient(resp)
-    for event in client.events():
-        notification = json.loads(event.data)
-        print(f"Notification [{notification.get('method')}]: {notification}")
-```
-
 ---
 
 ## 6. Python Client — Stdio
@@ -341,7 +267,7 @@ send({
     "method": "initialize",
     "params": {
         "protocolVersion": "2024-11-05",
-        "capabilities": {},
+        "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
         "clientInfo": {"name": "python-stdio", "version": "0.1.0"},
     },
 })
@@ -371,8 +297,6 @@ proc.stdin.close()
 proc.wait()
 ```
 
-> **Note:** Stdio mode doesn't use session IDs — the session is tied to the lifetime of the subprocess.
-
 ---
 
 ## 7. TypeScript Client — Streamable HTTP
@@ -393,7 +317,7 @@ async function main() {
       method: "initialize",
       params: {
         protocolVersion: "2024-11-05",
-        capabilities: {},
+        capabilities: { tools: {}, resources: {}, prompts: {} },
         clientInfo: { name: "ts-client", version: "0.1.0" },
       },
     }),
@@ -453,57 +377,6 @@ async function main() {
 main().catch(console.error);
 ```
 
-### 7.2 Calling Tools With Arguments
-
-```typescript
-const callResp = await fetch(BASE_URL, {
-  method: "POST",
-  headers,
-  body: JSON.stringify({
-    jsonrpc: "2.0",
-    id: 4,
-    method: "tools/call",
-    params: {
-      name: "finance.get_invoice",
-      arguments: {
-        invoice_id: "INV-2024-001",
-        include_line_items: true,
-      },
-    },
-  }),
-});
-const result = await callResp.json();
-```
-
-### 7.3 Receiving Notifications (SSE)
-
-```typescript
-const streamResp = await fetch(BASE_URL, {
-  headers: {
-    Accept: "text/event-stream",
-    "Mcp-Session-Id": sessionId,
-  },
-});
-
-const reader = streamResp.body?.getReader();
-const decoder = new TextDecoder();
-
-if (reader) {
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-
-    const text = decoder.decode(value);
-    for (const line of text.split("\n")) {
-      if (line.startsWith("data: ")) {
-        const notification = JSON.parse(line.slice(6));
-        console.log("Notification:", notification);
-      }
-    }
-  }
-}
-```
-
 ---
 
 ## 8. TypeScript Client — Stdio
@@ -548,7 +421,7 @@ async function main() {
     method: "initialize",
     params: {
       protocolVersion: "2024-11-05",
-      capabilities: {},
+      capabilities: { tools: {}, resources: {}, prompts: {} },
       clientInfo: { name: "ts-stdio", version: "0.1.0" },
     },
   });
@@ -584,11 +457,94 @@ main().catch(console.error);
 
 ---
 
-## 9. Error Handling
+## 9. Working with Resources
+
+Resources are read-only data sources (like database records or documentation) that the AI can fetch.
+
+### 9.1 List Resources
+```json
+{ "jsonrpc": "2.0", "id": 5, "method": "resources/list", "params": {} }
+```
+
+### 9.2 Read a Resource
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "resources/read",
+  "params": {
+    "uri": "mcp://finance/invoices/INV-2024-001"
+  }
+}
+```
+
+---
+
+## 10. Working with Prompts
+
+Prompts are predefined instruction templates that help AI agents perform specific tasks.
+
+### 10.1 List Prompts
+```json
+{ "jsonrpc": "2.0", "id": 7, "method": "prompts/list", "params": {} }
+```
+
+### 10.2 Get a Prompt
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "prompts/get",
+  "params": {
+    "name": "analyze-spending",
+    "arguments": {
+      "department": "Engineering"
+    }
+  }
+}
+```
+
+---
+
+## 11. Completion & Suggestions
+
+ERPBridge provides suggestions for tool, resource, and prompt arguments. This is useful for building interactive CLIs or UI components.
+
+### 11.1 Get Suggestions
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "completion/complete",
+  "params": {
+    "ref": {
+      "type": "ref/resource",
+      "uri": "mcp://finance/invoices/"
+    },
+    "argument": {
+      "name": "invoice_id",
+      "value": "INV-"
+    }
+  }
+}
+```
+
+---
+
+## 12. Hot Reloading
+
+ERPBridge supports **Hot Reloading** of tool schemas. If you add or modify a `.json` file in the `schemas/` directory, the server automatically detects the change and updates its tool registry.
+
+- **No restart required**: Active sessions will see the new tools immediately.
+- **Notification**: The server sends a `notifications/tools/list_changed` notification to all connected clients when a reload occurs.
+
+---
+
+## 13. Error Handling
 
 JSON-RPC errors are returned inside the response body, not as HTTP error codes. Always check the response for an `error` field.
 
-### 9.1 What a JSON-RPC Error Looks Like
+### 13.1 What a JSON-RPC Error Looks Like
 
 ```json
 {
@@ -602,36 +558,7 @@ JSON-RPC errors are returned inside the response body, not as HTTP error codes. 
 }
 ```
 
-### 9.2 Python — Checking for Errors
-
-```python
-response = call_resp.json()
-
-if "error" in response:
-    err = response["error"]
-    print(f"Error {err['code']}: {err['message']}")
-    if "data" in err:
-        print(f"Details: {err['data']}")
-else:
-    result = response.get("result")
-    print("Success:", json.dumps(result, indent=2))
-```
-
-### 9.3 TypeScript — Checking for Errors
-
-```typescript
-const response = await callResp.json();
-
-if ("error" in response) {
-  const { code, message, data } = response.error;
-  console.error(`Error ${code}: ${message}`);
-  if (data) console.error("Details:", data);
-} else {
-  console.log("Success:", JSON.stringify(response.result, null, 2));
-}
-```
-
-### 9.4 Common JSON-RPC Error Codes
+### 13.2 Common JSON-RPC Error Codes
 
 | Code | Meaning | Fix |
 |---|---|---|
@@ -643,7 +570,7 @@ if ("error" in response) {
 
 ---
 
-## 10. Troubleshooting
+## 14. Troubleshooting
 
 ### ❌ `Mcp-Session-Id` is missing from the response
 
@@ -662,103 +589,31 @@ if ("error" in response) {
 **Fix:**
 - Confirm the server started successfully (check Docker logs or terminal output).
 - Verify the port: `curl http://localhost:8080/mcp/`
-- If you changed the port, update `BASE_URL` in your client to match.
 
 ---
 
-### ❌ Tool not found / wrong tool name
+## 15. Logging & Redaction
 
-**Cause:** Tool names are case-sensitive and can be long.
+ERPBridge implements standard MCP logging via `notifications/message`.
 
-**Fix:**
-- Always call `tools/list` first and copy the `name` field exactly.
-- Don't guess the tool name from the description.
-
-```python
-# Print all tool names to copy from
-for tool in tools["result"]["tools"]:
-    print(tool["name"])
-```
-
----
-
-### ❌ No notifications received from SSE stream
-
-**Cause:** Notifications are optional and only sent for specific events.
-
-**Fix:** This is usually expected behaviour. Notifications only appear when:
-- A tool reports progress
-- The server logs a message
-- The tool list changes
-
-You don't need SSE for basic tool calls to work.
-
----
-
-### ❌ Stdio client hangs / no response
-
-**Cause:** The process isn't writing to stdout, or you're not reading line-by-line.
-
-**Fix:**
-- Make sure you're reading one full line at a time (responses are newline-delimited).
-- Check stderr for server startup errors.
-- Confirm Go is installed: `go version`
-
----
-
-## 11. Logging & Redaction
-
-ERPBridge implements standard MCP logging via `notifications/message`. This allows servers to push real-time logs to clients, which is useful for debugging tool execution.
-
-### 11.1 Setting the Log Level
-Clients can control server-side verbosity by calling `logging/setLevel`.
-
-**Example Request:**
+### 15.1 Setting the Log Level
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 4,
+  "id": 10,
   "method": "logging/setLevel",
-  "params": {
-    "level": "debug"
-  }
+  "params": { "level": "debug" }
 }
 ```
 
-Available levels (RFC 5424): `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`.
+Available levels: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`.
 
-### 11.2 Receiving Logs
-Logs are sent as notifications from the server. If using **Streamable HTTP**, these arrive via the **SSE stream** (GET request). If using **Stdio**, they are printed to `stdout` as JSON-RPC notifications.
-
-**Example Notification:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "notifications/message",
-  "params": {
-    "level": "info",
-    "logger": "mcp",
-    "data": {
-      "msg": "tool execution completed",
-      "tool_name": "erp.GET-resource-Employee",
-      "duration": "145ms"
-    }
-  }
-}
-```
-
-### 11.3 Automatic Redaction
-For security, ERPBridge automatically redacts sensitive data from all logs sent to clients. This includes:
-- **API Keys & Tokens**
-- **Passwords**
-- **PII (Emails, Phone Numbers)**
-- **Authorization Headers**
-
-Redacted fields will appear as `[REDACTED]` in the log payload. Full, unredacted logs are only available on the server console/logs.
+### 15.2 Automatic Redaction
+For security, ERPBridge automatically redacts sensitive data (API keys, passwords, PII) from all logs sent to clients. Redacted fields appear as `[REDACTED]`.
 
 ---
 
-## 12. Quick Reference Cheat Sheet
+## 16. Quick Reference Cheat Sheet
 
 ### JSON-RPC Message Template
 
@@ -776,9 +631,20 @@ Redacted fields will appear as `[REDACTED]` in the log payload. Full, unredacted
 ```
 1. POST /mcp/  →  initialize          (no session ID needed)
 2. POST /mcp/  →  tools/list          (include Mcp-Session-Id)
-3. POST /mcp/  →  tools/call          (include Mcp-Session-Id)
-4. GET  /mcp/  →  SSE stream          (optional, include Mcp-Session-Id)
+3. POST /mcp/  →  resources/list      (include Mcp-Session-Id)
+4. POST /mcp/  →  prompts/list        (include Mcp-Session-Id)
+5. POST /mcp/  →  tools/call          (include Mcp-Session-Id)
+6. GET  /mcp/  →  SSE stream          (optional, include Mcp-Session-Id)
 ```
+
+### Transport at a Glance
+
+| | Streamable HTTP | Stdio |
+|---|---|---|
+| Session ID | Required (from `initialize` response header) | Not used |
+| Notifications | Via SSE (GET stream) | Supported (via stdout) |
+| Debugging | Easy (curl, Postman, browser devtools) | Harder |
+| Best for | Services, web apps | Local scripts, CLIs |
 
 ### Key Headers
 
@@ -787,12 +653,3 @@ Redacted fields will appear as `[REDACTED]` in the log payload. Full, unredacted
 | `Content-Type: application/json` | All POST requests |
 | `Mcp-Session-Id: <id>` | All requests after `initialize` |
 | `Accept: text/event-stream` | SSE / notifications GET request |
-
-### Transport at a Glance
-
-| | Streamable HTTP | Stdio |
-|---|---|---|
-| Session ID | Required (from `initialize` response header) | Not used |
-| Notifications | Via SSE (GET stream) | Not supported |
-| Debugging | Easy (curl, Postman, browser devtools) | Harder |
-| Best for | Services, web apps | Local scripts, CLIs |
