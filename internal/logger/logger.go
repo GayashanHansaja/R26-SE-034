@@ -167,6 +167,14 @@ func NewRequestID() string {
 	return fmt.Sprintf("req_%x", b)
 }
 
+// Body sanitises an HTTP body string for DEBUG logging by truncating it.
+func Body(s string) string {
+	if len(s) > 500 {
+		return s[:500] + "... [truncated]"
+	}
+	return s
+}
+
 // componentHandler is a simple wrapper to allow per-component levels (optional)
 type componentHandler struct {
 	slog.Handler
