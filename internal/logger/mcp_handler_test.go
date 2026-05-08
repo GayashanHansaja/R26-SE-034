@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/nimendra/ERPBridge/internal/types"
 )
@@ -16,7 +17,13 @@ func TestMCPHandler_Redaction(t *testing.T) {
 	srv := server.NewMCPServer("test", "1.0.0")
 	h := NewMCPHandler(srv, "test-logger")
 
-	ctx := context.Background()
+	// Create a mock session and add it to context
+	notifCh := make(chan mcp.JSONRPCNotification, 10)
+	sess := &mockFullSession{
+		level: mcp.LoggingLevelDebug,
+		notif: notifCh,
+	}
+	ctx := srv.WithContext(context.Background(), sess)
 
 	type testStruct struct {
 		Token types.APIToken
@@ -125,7 +132,22 @@ func (h *mockHandler) Handle(context.Context, slog.Record) error {
 func (h *mockHandler) WithAttrs(attrs []slog.Attr) slog.Handler { return h }
 func (h *mockHandler) WithGroup(name string) slog.Handler       { return h }
 
+type mockFullSession struct {
+	server.ClientSession
+	level mcp.LoggingLevel
+	notif chan mcp.JSONRPCNotification
+}
+
+func (s *mockFullSession) SetLogLevel(l mcp.LoggingLevel) { s.level = l }
+func (s *mockFullSession) GetLogLevel() mcp.LoggingLevel  { return s.level }
+func (s *mockFullSession) Initialized() bool              { return true }
+func (s *mockFullSession) NotificationChannel() chan<- mcp.JSONRPCNotification {
+	return s.notif
+}
+func (s *mockFullSession) SessionID() string { return "test-session" }
+
 func TestMCPHandler_Enabled(t *testing.T) {
+
 	// This test is harder because server.ClientSessionFromContext depends on internal mcp-go state.
 	// But we can at least verify it returns true when no session is present.
 	srv := server.NewMCPServer("test", "1.0.0")

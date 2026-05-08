@@ -31,18 +31,18 @@ func LoggingMiddleware(log *slog.Logger) server.ToolHandlerMiddleware {
 
 			ctx = logger.WithLogger(ctx, toolLog)
 
-			toolLog.Info("tool execution started", slog.Any("arguments", req.Params.Arguments))
+			toolLog.InfoContext(ctx, "tool execution started", slog.Any("arguments", req.Params.Arguments))
 
 			result, err := next(ctx, req)
 
 			duration := time.Since(start)
 			if err != nil {
-				toolLog.Error("tool execution failed",
+				toolLog.ErrorContext(ctx, "tool execution failed",
 					slog.Duration("duration", duration),
 					slog.String("error", err.Error()),
 				)
 			} else {
-				toolLog.Info("tool execution completed",
+				toolLog.InfoContext(ctx, "tool execution completed",
 					slog.Duration("duration", duration),
 				)
 			}

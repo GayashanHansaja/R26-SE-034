@@ -131,7 +131,7 @@ func (s *Server) RegisterBuiltinTools() {
 			msg, _ := args["message"].(string)
 
 			// Log using the composite logger which includes MCPHandler
-			s.log.Info("Sensitive data received",
+			s.log.InfoContext(ctx, "Sensitive data received",
 				slog.String("token", token), // Should be redacted by field name
 				slog.String("message", msg), // Should be preserved
 				slog.Any("raw_args", args),  // Should be redacted by keys in map

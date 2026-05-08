@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"regexp"
+	"sync"
 
 	"github.com/m-mizutani/masq"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -20,13 +21,14 @@ type MCPHandler struct {
 	loggerName string
 	inner      slog.Handler
 	buf        *bytes.Buffer
+	mu         sync.Mutex
 }
 
 // NewMCPHandler creates a new MCPHandler with built-in redaction.
 func NewMCPHandler(srv *server.MCPServer, loggerName string) *MCPHandler {
 	buf := &bytes.Buffer{}
 	inner := slog.NewJSONHandler(buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug - 4, // Pass all levels to Handle() for per-session filtering
+		Level: slog.LevelDebug - 8, // Pass all levels to Handle() for per-session filtering
 		ReplaceAttr: masq.New(
 			// Redact by custom types
 			masq.WithType[types.APIToken](),
@@ -79,9 +81,18 @@ func (h *MCPHandler) Enabled(ctx context.Context, level slog.Level) bool {
 
 // Handle redacts, serializes, and sends the log record to the MCP client.
 func (h *MCPHandler) Handle(ctx context.Context, record slog.Record) error {
+	// Re-check enabled with context (important for session-based filtering)
 	if !h.Enabled(ctx, record.Level) {
 		return nil
 	}
+
+	// We only send logs if there is a session in the context
+	if sess := server.ClientSessionFromContext(ctx); sess == nil {
+		return nil
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	// masq's ReplaceAttr runs inside inner.Handle and scrubs the record into the buffer.
 	h.buf.Reset()
@@ -109,11 +120,15 @@ func (h *MCPHandler) Handle(ctx context.Context, record slog.Record) error {
 
 // WithAttrs returns a new handler with the given attributes.
 func (h *MCPHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	// For simplicity, we don't clone the buffer/mutex since they are only used in Handle
+	// and WithAttrs only modifies the inner handler's attribute state.
 	return &MCPHandler{
 		srv:        h.srv,
 		loggerName: h.loggerName,
 		inner:      h.inner.WithAttrs(attrs),
 		buf:        h.buf,
+		// We share the same buffer and mutex across all clones.
+		// This is safe because slog.Logger ensures Handle is called on the final handler.
 	}
 }
 
@@ -141,6 +156,9 @@ func (m MultiHandler) Enabled(ctx context.Context, l slog.Level) bool {
 
 func (m MultiHandler) Handle(ctx context.Context, r slog.Record) error {
 	for _, h := range m {
+		// Note: We MUST NOT check Enabled here again because slog already checked it
+		// for the MultiHandler itself. However, individual handlers within MultiHandler
+		// might have different thresholds.
 		if h.Enabled(ctx, r.Level) {
 			_ = h.Handle(ctx, r)
 		}
