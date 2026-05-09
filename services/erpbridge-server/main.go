@@ -50,7 +50,6 @@ func main() {
 	}
 
 	redisURL := os.Getenv("REDIS_URL")
-	embedderURL := os.Getenv("EMBEDDER_URL")
 
 	// In a real scenario, this should be the public URL of the server
 	baseURL := os.Getenv("BASE_URL")
@@ -66,11 +65,7 @@ func main() {
 			slog.Error("failed to parse redis url", slog.String("error", err.Error()))
 		} else {
 			rdb := redis.NewClient(opt)
-			var embedder cache.Embedder
-			if embedderURL != "" {
-				embedder = cache.NewHFEmbedder(embedderURL)
-			}
-			cacheMgr = cache.NewManager(rdb, embedder, rootLog)
+			cacheMgr = cache.NewManager(rdb, rootLog)
 			if err := cacheMgr.EnsureIndex(context.Background()); err != nil {
 				slog.Warn("failed to ensure redis index", slog.String("error", err.Error()))
 			}

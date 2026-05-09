@@ -2,7 +2,6 @@
 package cache
 
 import (
-	"context"
 	"testing"
 
 	"github.com/nimendra/ERPBridge/internal/logger"
@@ -63,31 +62,8 @@ func TestExactKey(t *testing.T) {
 	assert.Contains(t, key, "exact:tool:role:")
 }
 
-type mockEmbedder struct {
-	dim int
-}
-
-func (m *mockEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
-	return make([]float32, m.dim), nil
-}
-
-func (m *mockEmbedder) Dim() int {
-	return m.dim
-}
-
 func TestNewManager(t *testing.T) {
 	log := logger.Init()
-	m := NewManager(nil, &mockEmbedder{dim: 768}, log)
+	m := NewManager(nil, log)
 	assert.NotNil(t, m)
-	assert.Equal(t, 768, m.embedder.Dim())
-}
-
-func TestFloat32ToBytes(t *testing.T) {
-	v := []float32{1.0, 2.0}
-	b := float32ToBytes(v)
-	assert.Len(t, b, 8)
-}
-
-func TestEscapeTag(t *testing.T) {
-	assert.Equal(t, "foo\\-bar", escapeTag("foo-bar"))
 }

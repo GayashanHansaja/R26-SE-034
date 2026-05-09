@@ -222,7 +222,7 @@ func TestServer_HttpEndpoints(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
 	// Enable cache with a dummy manager to cover parameter validation
-	s.cache = cache.NewManager(nil, nil, log)
+	s.cache = cache.NewManager(nil, log)
 
 	req = httptest.NewRequest("POST", "/api/cache/flush", nil)
 	w = httptest.NewRecorder()

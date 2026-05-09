@@ -16,65 +16,36 @@ import (
 )
 
 type Config struct {
-	Enabled           bool     `json:"enabled"`
-	TTLSeconds        int      `json:"ttlSeconds"`
-	SemanticThreshold float32  `json:"semanticThreshold"`
-	IsReadOnly        bool     `json:"isReadOnly"` // true = shared cache; false = role-isolated
-	FlushOn           []string `json:"flushOn"`
+	Enabled    bool     `json:"enabled"`
+	TTLSeconds int      `json:"ttlSeconds"`
+	IsReadOnly bool     `json:"isReadOnly"` // true = shared cache; false = role-isolated
+	FlushOn    []string `json:"flushOn"`
 }
 
 type Entry struct {
 	Response json.RawMessage
 	CachedAt time.Time
-	HitType  string // "exact" | "semantic" | "miss"
+	HitType  string // "exact" | "miss"
 }
 
 type Manager struct {
-	rdb      *redis.Client
-	embedder Embedder // interface — swappable model
-	log      *slog.Logger
+	rdb *redis.Client
+	log *slog.Logger
 }
 
-func NewManager(rdb *redis.Client, embedder Embedder, rootLog *slog.Logger) *Manager {
+func NewManager(rdb *redis.Client, rootLog *slog.Logger) *Manager {
 	return &Manager{
-		rdb:      rdb,
-		embedder: embedder,
-		log:      logger.Component(rootLog, "cache"),
+		rdb: rdb,
+		log: logger.Component(rootLog, "cache"),
 	}
 }
 
-// EnsureIndex creates the RediSearch vector index if it doesn't exist.
+// EnsureIndex is temporarily disabled.
 func (m *Manager) EnsureIndex(ctx context.Context) error {
-	if m.embedder == nil {
-		m.log.Warn("semantic caching disabled: no embedder configured")
-		return nil
-	}
-
-	// Check if index exists
-	_, err := m.rdb.Do(ctx, "FT.INFO", "idx:semantic").Result()
-	if err == nil {
-		return nil // Index already exists
-	}
-
-	// Create index
-	// FT.CREATE idx:semantic ON HASH PREFIX 1 "sem:" SCHEMA tool TAG role TAG args_emb VECTOR HNSW 6 TYPE FLOAT32 DIM 768 DISTANCE_METRIC COSINE
-	err = m.rdb.Do(ctx, "FT.CREATE", "idx:semantic",
-		"ON", "HASH",
-		"PREFIX", "1", "sem:",
-		"SCHEMA",
-		"tool", "TAG",
-		"role", "TAG",
-		"args_emb", "VECTOR", "HNSW", "6",
-		"TYPE", "FLOAT32",
-		"DIM", fmt.Sprintf("%d", m.embedder.Dim()),
-		"DISTANCE_METRIC", "COSINE",
-	).Err()
-
-	return err
+	return nil
 }
 
-// Get tries exact match first, then semantic fallback.
-// Returns nil entry on a full miss.
+// Get tries exact match. Semantic fallback is temporarily disabled.
 func (m *Manager) Get(ctx context.Context, tool, role string, args map[string]any, cfg Config) (*Entry, error) {
 	if !cfg.Enabled {
 		return &Entry{HitType: "miss"}, nil
@@ -91,21 +62,11 @@ func (m *Manager) Get(ctx context.Context, tool, role string, args map[string]an
 		return entry, nil
 	}
 
-	// Layer 2 — semantic fallback
-	if cfg.SemanticThreshold > 0 && m.embedder != nil {
-		argsJSON, _ := json.Marshal(args)
-		if entry, score, err := m.semanticGet(ctx, tool, roleKey, argsJSON, cfg.SemanticThreshold); err == nil && entry != nil {
-			entry.HitType = "semantic"
-			log.Info("cache hit", slog.String("type", "semantic"), slog.Float64("score", float64(score)))
-			return entry, nil
-		}
-	}
-
 	log.Info("cache miss", slog.String("exact_key", key))
 	return &Entry{HitType: "miss"}, nil
 }
 
-// Set stores a response in both the exact and semantic caches.
+// Set stores a response in the exact cache. Semantic cache is temporarily disabled.
 func (m *Manager) Set(ctx context.Context, tool, role string, args map[string]any, response json.RawMessage, cfg Config) error {
 	if !cfg.Enabled {
 		return nil
@@ -114,7 +75,6 @@ func (m *Manager) Set(ctx context.Context, tool, role string, args map[string]an
 	log := logger.FromContext(ctx)
 	roleKey := roleScope(role, cfg.IsReadOnly)
 	ttl := time.Duration(cfg.TTLSeconds) * time.Second
-	argsJSON, _ := json.Marshal(args)
 
 	// Exact cache
 	key := exactKey(tool, roleKey, args)
@@ -123,16 +83,6 @@ func (m *Manager) Set(ctx context.Context, tool, role string, args map[string]an
 		return fmt.Errorf("exact cache set: %w", err)
 	}
 	log.Debug("cache stored", slog.String("key", key), slog.Int("ttl_seconds", cfg.TTLSeconds))
-
-	// Semantic cache
-	if cfg.SemanticThreshold > 0 && m.embedder != nil {
-		embedding, err := m.embedder.Embed(ctx, string(argsJSON))
-		if err != nil {
-			// Non-fatal — exact cache still works
-			return nil
-		}
-		return m.semanticSet(ctx, tool, roleKey, argsJSON, response, embedding, ttl)
-	}
 
 	return nil
 }
@@ -178,30 +128,12 @@ func roleScope(role string, isReadOnly bool) string {
 }
 
 type Stats struct {
-	ExactKeys    int64  `json:"exactKeys"`
-	SemanticKeys int64  `json:"semanticKeys"`
-	RedisMemory  string `json:"redisMemory"`
+	ExactKeys   int64  `json:"exactKeys"`
+	RedisMemory string `json:"redisMemory"`
 }
 
 func (m *Manager) Stats(ctx context.Context) (Stats, error) {
-	exact, _ := m.rdb.Do(ctx, "DBSIZE").Int64() // Simplified, includes everything
-
-	// Get semantic index info
-	semInfo, _ := m.rdb.Do(ctx, "FT.INFO", "idx:semantic").Result()
-	var semanticCount int64
-	if semInfo != nil {
-		if data, ok := semInfo.([]any); ok {
-			for i := 0; i < len(data); i += 2 {
-				if key, ok := data[i].(string); ok && key == "num_docs" {
-					if val, ok := data[i+1].(string); ok {
-						_, _ = fmt.Sscanf(val, "%d", &semanticCount)
-					} else if val, ok := data[i+1].(int64); ok {
-						semanticCount = val
-					}
-				}
-			}
-		}
-	}
+	exact, _ := m.rdb.Do(ctx, "DBSIZE").Int64()
 
 	info, _ := m.rdb.Info(ctx, "memory").Result()
 	var memory string
@@ -213,8 +145,7 @@ func (m *Manager) Stats(ctx context.Context) (Stats, error) {
 	}
 
 	return Stats{
-		ExactKeys:    exact - semanticCount, // Approximate
-		SemanticKeys: semanticCount,
-		RedisMemory:  memory,
+		ExactKeys:   exact,
+		RedisMemory: memory,
 	}, nil
 }
