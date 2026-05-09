@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.2.0-alpha.2] (Observability & Hardening) - 2026-05-09
+## [v0.2.0-alpha.2] (Observability & Hardening) - 2026-05-10
 
 ### Added
 - feat(mcp): implement Server Hooks for lifecycle telemetry and business logic
@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor(mcp): migrate built-in system tools to type-safe structured handlers
 - chore(ci): harden production Dockerfile with non-root user and pinned Alpine 3.22.4
 - ci: update GitHub Actions to latest major versions (checkout@v6, setup-go@v6, goreleaser@v7)
+- ci: limit GoReleaser targets to linux/amd64 and standardize configuration quotes
 
 ### Fixed
 - fix(mcp): ensure graceful shutdown of reconciliation controller via signal-aware context
