@@ -3,14 +3,71 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/nimendra/ERPBridge/internal/logger"
 	"github.com/nimendra/ERPBridge/internal/metrics"
+	"golang.org/x/time/rate"
 )
+
+// RateLimitMiddleware provides per-session rate limiting for tool execution.
+type RateLimitMiddleware struct {
+	limiters map[string]*rate.Limiter
+	mutex    sync.RWMutex
+	rate     rate.Limit
+	burst    int
+}
+
+// NewRateLimitMiddleware initializes a new RateLimitMiddleware with the given rate and burst.
+func NewRateLimitMiddleware(requestsPerSecond float64, burst int) *RateLimitMiddleware {
+	return &RateLimitMiddleware{
+		limiters: make(map[string]*rate.Limiter),
+		rate:     rate.Limit(requestsPerSecond),
+		burst:    burst,
+	}
+}
+
+func (m *RateLimitMiddleware) getLimiter(sessionID string) *rate.Limiter {
+	if sessionID == "" {
+		sessionID = "anonymous"
+	}
+	m.mutex.RLock()
+	limiter, exists := m.limiters[sessionID]
+	m.mutex.RUnlock()
+
+	if !exists {
+		m.mutex.Lock()
+		limiter = rate.NewLimiter(m.rate, m.burst)
+		m.limiters[sessionID] = limiter
+		m.mutex.Unlock()
+	}
+
+	return limiter
+}
+
+// Handle returns a server.ToolHandlerMiddleware that enforces rate limits.
+func (m *RateLimitMiddleware) Handle() server.ToolHandlerMiddleware {
+	return func(next server.ToolHandlerFunc) server.ToolHandlerFunc {
+		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			sessionID := ""
+			if sess := server.ClientSessionFromContext(ctx); sess != nil {
+				sessionID = sess.SessionID()
+			}
+			limiter := m.getLimiter(sessionID)
+
+			if !limiter.Allow() {
+				return mcp.NewToolResultError(fmt.Sprintf("rate limit exceeded for session %s", sessionID)), nil
+			}
+
+			return next(ctx, req)
+		}
+	}
+}
 
 // LoggingMiddleware audits tool execution by logging start, completion, and failure events.
 func LoggingMiddleware(log *slog.Logger) server.ToolHandlerMiddleware {
