@@ -51,6 +51,19 @@ func main() {
 
 	redisURL := os.Getenv("REDIS_URL")
 
+	rateRPS := 5.0
+	if v := os.Getenv("RATE_LIMIT_RPS"); v != "" {
+		if _, err := fmt.Sscanf(v, "%f", &rateRPS); err != nil {
+			slog.Warn("failed to parse RATE_LIMIT_RPS", slog.String("value", v), slog.String("error", err.Error()))
+		}
+	}
+	rateBurst := 10
+	if v := os.Getenv("RATE_LIMIT_BURST"); v != "" {
+		if _, err := fmt.Sscanf(v, "%d", &rateBurst); err != nil {
+			slog.Warn("failed to parse RATE_LIMIT_BURST", slog.String("value", v), slog.String("error", err.Error()))
+		}
+	}
+
 	// In a real scenario, this should be the public URL of the server
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
@@ -74,7 +87,10 @@ func main() {
 	}
 
 	conn := connector.NewClient(rootLog)
-	server := mcp.NewServer(conn, cacheMgr, rootLog)
+	server := mcp.NewServer(conn, cacheMgr, rootLog, mcp.RateLimitConfig{
+		RequestsPerSecond: rateRPS,
+		Burst:             rateBurst,
+	})
 
 	// Load tools from schemas directory
 	loadTools(server, schemasDir)

@@ -40,6 +40,8 @@ services:
       - BASE_URL=http://localhost:8080
       - ERP_BASE_URL=http://mock-erp:8081
       - REDIS_URL=redis://redis:6379
+      - RATE_LIMIT_RPS=10
+      - RATE_LIMIT_BURST=20
     volumes:
       - ./schemas:/app/schemas
     depends_on:
