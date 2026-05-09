@@ -18,8 +18,7 @@ docker compose up -d --build
 The stack includes:
 - **ERPBridge Server** (`:8080`): The core MCP middleware.
 - **Mock ERP** (`:8081`): Simulates legacy ERP endpoints.
-- **Redis** (`:6379`): Provides semantic and exact matching cache.
-- **Embedder** (`:8083`): HuggingFace text-embeddings-inference for semantic search.
+- **Redis** (`:6379`): Provides exact matching cache.
 
 ## 2. Configuration
 
@@ -30,7 +29,6 @@ Environment variables can be configured in the `docker-compose.yml` file.
 | `BASE_URL` | Public URL of the MCP server (for SSE links). | `http://localhost:8080` |
 | `ERP_BASE_URL` | Base URL of the underlying ERP system. | `http://mock-erp:8081` |
 | `REDIS_URL` | URL for the Redis cache. | `redis://redis:6379` |
-| `EMBEDDER_URL` | URL for the vector embedding service. | `http://embedder:8083` |
 
 ## 3. Schema Management
 
@@ -134,6 +132,5 @@ Cursor supports connecting to remote MCP servers via HTTP. This is the recommend
 
 - **Connection Refused:** Ensure `ERP_BASE_URL` in `docker-compose.yml` uses the service name `http://mock-erp:8081` rather than `localhost`.
 - **Claude Stdio Timeout:** If Claude fails to connect, try building the server binary first and running it directly to ensure there are no startup errors (e.g., missing dependencies).
-- **Cache Issues:** If semantic search is not working, check the `embedder` container logs to ensure the model is loaded correctly.
 - **Schema Errors:** Use `./bridgectl tool validate schemas/path/to/tool.json` to debug invalid tool definitions.
 
