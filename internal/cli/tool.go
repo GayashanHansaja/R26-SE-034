@@ -185,8 +185,58 @@ var toolDescribeCmd = &cobra.Command{
 		return toolGetCmd.ValidArgsFunction(cmd, args, toComplete)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// For now, reuse GET with rich formatting or implement separate describe logic
-		fmt.Printf("Describing tool: %s (Not fully implemented, use 'get -o yaml' for now)\n", args[0])
+		ctx := cfg.ActiveContext()
+		if err := ValidateServerURL(ctx.MCPServer, "MCP", cfg.CurrentContext); err != nil {
+			return err
+		}
+
+		name, version := mcp.ParseToolIdentifier(args[0])
+		url := fmt.Sprintf("%s/apis/erpbridge.io/v1/tools", ctx.MCPServer)
+
+		resp, err := http.Get(url)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		var tools []*mcp.Tool
+		if err := json.NewDecoder(resp.Body).Decode(&tools); err != nil {
+			return err
+		}
+
+		var target *mcp.Tool
+		for _, t := range tools {
+			if t.Metadata.Name == name && (version == "" || t.Metadata.Version == version) {
+				target = t
+				break
+			}
+		}
+
+		if target == nil {
+			return fmt.Errorf("tool %s not found", args[0])
+		}
+
+		out := cmd.OutOrStdout()
+		_, _ = fmt.Fprintf(out, "Name:        %s\n", target.Metadata.Name)
+		_, _ = fmt.Fprintf(out, "Version:     %s\n", target.Metadata.Version)
+		_, _ = fmt.Fprintf(out, "Module:      %s\n", target.Metadata.Module)
+		_, _ = fmt.Fprintf(out, "Description: %s\n", target.Spec.Description.Short)
+		_, _ = fmt.Fprintf(out, "\nInput Parameters:\n")
+		for propName, prop := range target.Spec.InputSchema.Properties {
+			required := ""
+			for _, r := range target.Spec.InputSchema.Required {
+				if r == propName {
+					required = "*"
+					break
+				}
+			}
+			_, _ = fmt.Fprintf(out, "  %-12s [%s]%s %s\n", propName, prop.Type, required, prop.Description)
+		}
+
+		_, _ = fmt.Fprintf(out, "\nExecution:\n")
+		_, _ = fmt.Fprintf(out, "  Method:    %s\n", target.Spec.Execution.Method)
+		_, _ = fmt.Fprintf(out, "  Endpoint:  %s\n", target.Spec.Execution.Endpoint)
+
 		return nil
 	},
 }
