@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/nimendra/ERPBridge/internal/connector"
@@ -19,27 +20,30 @@ type Resource struct {
 	URITemplate string `json:"uriTemplate"`
 	// MimeType specifies the format of the resource content (e.g., "text/markdown").
 	MimeType string `json:"mimeType,omitempty"`
-	// Endpoint provides the technical details for fetching the resource data.
-	Endpoint *Endpoint `json:"endpoint,omitempty"`
+	// Execution defines how to fetch the resource.
+	Execution Execution `json:"execution"`
+	// Security defines the auth for the resource.
+	Security Security `json:"security"`
 }
 
 // Execute fetches the resource content from the underlying ERP system.
 func (r *Resource) Execute(ctx context.Context, uri string, conn ERPConnector) (string, error) {
-	if r.Endpoint == nil {
+	if r.Execution.Endpoint == "" {
 		return "", fmt.Errorf("resource %s has no endpoint configuration", r.Name)
 	}
 
 	ep := connector.EndpointConfig{
 		Method:  "GET",
-		Path:    r.Endpoint.Path,
+		Path:    r.Execution.Endpoint,
 		BaseURL: "",
 		Auth: connector.AuthConfig{
-			Type:     r.Endpoint.Auth.Type,
-			Header:   r.Endpoint.Auth.Header,
-			Key:      r.Endpoint.Auth.KeyRef,
-			Username: r.Endpoint.Auth.Username,
-			Token:    r.Endpoint.Auth.Token,
+			Type: r.Security.AuthType,
+			Key:  os.Getenv(r.Security.CredentialRef),
 		},
+	}
+
+	if ep.Auth.Key == "" {
+		ep.Auth.Key = r.Security.CredentialRef
 	}
 
 	// Handle relative paths

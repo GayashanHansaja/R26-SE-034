@@ -22,14 +22,8 @@ import (
 type AuthConfig struct {
 	// Type of authentication: "api-key", "basic", or "bearer".
 	Type string
-	// Header name for api-key authentication (e.g., "X-API-Key").
-	Header string
-	// Key is the API key value or secret.
+	// Key is the resolved secret value.
 	Key string
-	// Username for basic authentication.
-	Username string
-	// Token for bearer authentication.
-	Token string
 }
 
 // EndpointConfig describes the target ERP API endpoint and its requirements.
@@ -77,21 +71,20 @@ func NewClient(rootLog *slog.Logger) *Client {
 }
 
 func (c *Client) applyAuth(req *http.Request, ep EndpointConfig) {
+	if ep.Auth.Key == "" {
+		return
+	}
+
 	switch ep.Auth.Type {
 	case "api-key":
-		req.Header.Set(ep.Auth.Header, ep.Auth.Key)
+		// For Frappe/ERPNext, this is typically "token {key}:{secret}"
+		// We expect the resolved Key to contain the full header value.
+		req.Header.Set("Authorization", ep.Auth.Key)
 	case "basic":
-		user := ep.Auth.Username
-		if user == "" {
-			user = ep.Auth.Header
-		}
-		req.SetBasicAuth(user, ep.Auth.Key)
+		// Expects Key to be base64 encoded "user:pass"
+		req.Header.Set("Authorization", "Basic "+ep.Auth.Key)
 	case "bearer":
-		token := ep.Auth.Token
-		if token == "" {
-			token = ep.Auth.Key
-		}
-		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Authorization", "Bearer "+ep.Auth.Key)
 	}
 }
 

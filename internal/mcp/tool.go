@@ -16,24 +16,43 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// Tool represents a protocol-compliant MCP tool that an AI agent can invoke.
+// Tool represents a versioned, protocol-compliant MCP tool resource.
 type Tool struct {
-	// Name is the unique identifier for the tool.
-	Name string `json:"name"`
-	// Description provides a human-readable explanation of what the tool does.
-	Description string `json:"description"`
-	// Module is the ERP module this tool belongs to (e.g., "finance").
-	Module string `json:"module,omitempty"`
-	// InputSchema defines the expected arguments for the tool call.
-	InputSchema InputSchema `json:"inputSchema"`
-	// OutputSchema is an optional JSON schema used for validating the ERP response.
-	OutputSchema *any `json:"outputSchema,omitempty"`
-	// Endpoint contains the connection details for the underlying ERP API.
-	Endpoint *Endpoint `json:"endpoint,omitempty"`
-	// Cache defines the caching strategy for this tool.
-	Cache *cache.Config `json:"cache,omitempty"`
+	APIVersion string   `json:"apiVersion"`
+	Kind       string   `json:"kind"`
+	Metadata   Metadata `json:"metadata"`
+	Spec       ToolSpec `json:"spec"`
+
 	// Handler is an optional native Go function to handle the tool call.
 	Handler func(ctx context.Context, args map[string]any) (*ToolResult, error) `json:"-"`
+}
+
+// Metadata contains identity and lifecycle information for a tool.
+type Metadata struct {
+	Name    string `json:"name"`
+	Version string `json:"version"` // SemVer
+	Module  string `json:"module"`
+	Status  string `json:"status,omitempty"` // ready, degraded
+}
+
+// ToolSpec defines the behavior, interface, and execution details of a tool.
+type ToolSpec struct {
+	Description  Description   `json:"description"`
+	InputSchema  InputSchema   `json:"inputSchema"`
+	OutputSchema *any          `json:"outputSchema,omitempty"`
+	Execution    Execution     `json:"execution"`
+	Cache        *cache.Config `json:"cache,omitempty"`
+	Security     Security      `json:"security"`
+	Routing      *Routing      `json:"routing,omitempty"`
+	Lifecycle    *Lifecycle    `json:"lifecycle,omitempty"`
+}
+
+// Description provides rich semantic information to the LLM.
+type Description struct {
+	Short        string   `json:"short"`
+	WhenToUse    []string `json:"whenToUse"`
+	WhenNotToUse []string `json:"whenNotToUse"`
+	Examples     []string `json:"examples"`
 }
 
 // InputSchema defines the structure of arguments required by a tool.
@@ -51,20 +70,34 @@ type Property struct {
 	Default     any      `json:"default,omitempty"`
 }
 
-// Endpoint provides the technical configuration for an ERP API call.
-type Endpoint struct {
-	Method string   `json:"method"`
-	Path   string   `json:"path"`
-	Auth   AuthInfo `json:"auth"`
+// Execution defines how the tool call is mapped to an ERP API.
+type Execution struct {
+	Type         string            `json:"type"` // "http"
+	Method       string            `json:"method"`
+	Endpoint     string            `json:"endpoint"`
+	Mapping      map[string]string `json:"mapping,omitempty"`      // Maps LLM arg name -> ERP arg name
+	ResponsePath string            `json:"responsePath,omitempty"` // JSONPath to unwrap response
 }
 
-// AuthInfo contains the credentials and authentication method for an endpoint.
-type AuthInfo struct {
-	Type     string `json:"type"`
-	Header   string `json:"header"`
-	KeyRef   string `json:"keyRef"`
-	Username string `json:"username"`
-	Token    string `json:"token"`
+// Security defines the authentication requirements for the tool.
+type Security struct {
+	AuthType      string `json:"authType"`      // api-key, basic, bearer
+	CredentialRef string `json:"credentialRef"` // Env var name or vault key
+}
+
+// Routing provides metadata to improve LLM tool selection accuracy.
+type Routing struct {
+	Priority    float64  `json:"priority"`
+	Signals     []string `json:"signals"`
+	AntiSignals []string `json:"antiSignals"`
+}
+
+// Lifecycle defines the support status of a specific tool version.
+type Lifecycle struct {
+	Status       string `json:"status"` // stable, deprecated, sunset
+	DeprecatedAt string `json:"deprecatedAt,omitempty"`
+	SunsetAt     string `json:"sunsetAt,omitempty"`
+	Replacement  string `json:"replacement,omitempty"`
 }
 
 // ToolCallRequest represents an incoming request from an MCP client to invoke a tool.
@@ -94,26 +127,36 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 		return t.Handler(ctx, args)
 	}
 
-	if t.Endpoint == nil {
-		return nil, fmt.Errorf("tool %s has no endpoint configuration", t.Name)
+	if t.Spec.Execution.Endpoint == "" {
+		return nil, fmt.Errorf("tool %s has no endpoint configuration", t.Metadata.Name)
+	}
+
+	// Apply argument mapping (LLM arg name -> ERP arg name)
+	erpArgs := make(map[string]any)
+	for k, v := range args {
+		if mappedKey, ok := t.Spec.Execution.Mapping[k]; ok {
+			erpArgs[mappedKey] = v
+		} else {
+			erpArgs[k] = v
+		}
 	}
 
 	queryParams := url.Values{}
 	var body io.Reader
 
-	if t.Endpoint.Method == "GET" {
-		for k, v := range args {
+	if t.Spec.Execution.Method == "GET" {
+		for k, v := range erpArgs {
 			queryParams.Set(k, fmt.Sprintf("%v", v))
 		}
 	} else {
-		data, err := json.Marshal(args)
+		data, err := json.Marshal(erpArgs)
 		if err != nil {
 			return nil, fmt.Errorf("marshal arguments: %w", err)
 		}
 		body = strings.NewReader(string(data))
 	}
 
-	fullURL := t.Endpoint.Path
+	fullURL := t.Spec.Execution.Endpoint
 	envBaseURL := os.Getenv("ERP_BASE_URL")
 
 	if envBaseURL != "" {
@@ -126,7 +169,6 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 					if err == nil {
 						u.Scheme = base.Scheme
 						u.Host = base.Host
-						// Keep the path and query from the original absolute URL
 						fullURL = u.String()
 					}
 				}
@@ -140,16 +182,20 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 		fullURL = "http://localhost:8081" + "/" + strings.TrimPrefix(fullURL, "/")
 	}
 
+	// Resolve CredentialRef from Environment Variables
+	cred := os.Getenv(t.Spec.Security.CredentialRef)
+	if cred == "" {
+		// Fallback to literal if not found in env (supports local dev/testing)
+		cred = t.Spec.Security.CredentialRef
+	}
+
 	ep := connector.EndpointConfig{
-		Method:  t.Endpoint.Method,
+		Method:  t.Spec.Execution.Method,
 		Path:    fullURL,
 		BaseURL: "",
 		Auth: connector.AuthConfig{
-			Type:     t.Endpoint.Auth.Type,
-			Header:   t.Endpoint.Auth.Header,
-			Key:      t.Endpoint.Auth.KeyRef,
-			Username: t.Endpoint.Auth.Username,
-			Token:    t.Endpoint.Auth.Token,
+			Type: t.Spec.Security.AuthType,
+			Key:  cred,
 		},
 	}
 
@@ -164,8 +210,17 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 		return nil, fmt.Errorf("decode erp response: %w", err)
 	}
 
-	if t.OutputSchema != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		if err := validateResponse(resultData, t.OutputSchema); err != nil {
+	// Unwrap response based on ResponsePath (simplistic implementation for top-level keys)
+	if t.Spec.Execution.ResponsePath != "" && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if m, ok := resultData.(map[string]any); ok {
+			if val, ok := m[t.Spec.Execution.ResponsePath]; ok {
+				resultData = val
+			}
+		}
+	}
+
+	if t.Spec.OutputSchema != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if err := validateResponse(resultData, t.Spec.OutputSchema); err != nil {
 			return &ToolResult{
 				Result:  resultData,
 				Error:   fmt.Sprintf("response validation failed: %v", err),
