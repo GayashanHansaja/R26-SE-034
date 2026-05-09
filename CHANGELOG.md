@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(mcp): add tool icons and output schema validation
 - feat(metrics): add server lifecycle and session Prometheus metrics
 - feat: add ASCII startup banners for server and CLI
+- feat: add Makefile for automated setup, build, test, and tool generation
 - test: achieve high coverage (>70%) across core packages (MCP, IDP, Cache, CLI, Output)
 - ci: modernize GoReleaser config with multi-platform builds, SBOM (Syft), and Signing (Cosign)
 
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor(mcp): optimize reconciliation loop with state-hash short-circuiting
 - refactor(mcp): migrate built-in system tools to type-safe structured handlers
 - chore(ci): harden production Dockerfile with non-root user and pinned Alpine 3.22.4
+- chore: ignore schemas directory in git (transition to DB-driven registry)
 - ci: update GitHub Actions to latest major versions (checkout@v6, setup-go@v6, goreleaser@v7)
 - ci: limit GoReleaser targets to linux/amd64 and standardize configuration quotes
 
