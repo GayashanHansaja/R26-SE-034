@@ -20,8 +20,14 @@ builds:
     goarch:
       - amd64
       - arm64
+    goarm64:
+      - v8.0
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -extldflags "-static"
 
   - id: bridgectl
     main: ./tools/bridgectl/main.go
@@ -35,8 +41,14 @@ builds:
     goarch:
       - amd64
       - arm64
+    goarm64:
+      - v8.0
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -extldflags "-static"
 
 archives:
   - id: erpbridge-server
@@ -90,35 +102,73 @@ archives:
 dockers_v2:
   - ids:
       - erpbridge-server
+    dockerfile: Dockerfile.server.releaser
     images:
       - "ghcr.io/{{ .Env.REPO_OWNER }}/erpbridge-server"
     tags:
       - "{{ .Version }}"
       - "latest"
+    platforms:
+      - linux/amd64
+      - linux/arm64
     labels:
       "org.opencontainers.image.created": "{{.Date}}"
       "org.opencontainers.image.title": "erpbridge-server"
       "org.opencontainers.image.revision": "{{.FullCommit}}"
       "org.opencontainers.image.version": "{{.Version}}"
-    dockerfile: Dockerfile.server.releaser
+      "org.opencontainers.image.source": "{{.GitURL}}"
 
 checksum:
   name_template: "checksums.txt"
 
 changelog:
   sort: asc
+  use: github
+  groups:
+    - title: "🚀 Features"
+      regexp: '^feat'
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: '^fix'
+      order: 1
+    - title: "⚡ Performance"
+      regexp: '^perf'
+      order: 2
+    - title: "🔒 Security"
+      regexp: '^sec'
+      order: 3
+    - title: "Other"
+      order: 999
   filters:
     exclude:
       - "^docs:"
       - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "Merge pull request"
 
 release:
   github:
     owner: nmdra
     name: ERPBridge
+  draft: false
+  prerelease: auto
+  name_template: "ERPBridge {{.Tag}}"
   footer: |
     ---
+    **Full Changelog**: https://github.com/nmdra/ERPBridge/compare/{{ .PreviousTag }}...{{ .Tag }}
     Released by [GoReleaser](https://goreleaser.com).
+
+sboms:
+  - artifacts: archive
+
+signs:
+  - cmd: cosign
+    args:
+      - "sign-blob"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+    artifacts: checksum
 
 snapshot:
   version_template: "{{ .Tag }}-next"
