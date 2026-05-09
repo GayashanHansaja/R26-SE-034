@@ -2,6 +2,8 @@ package output
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -14,8 +16,14 @@ type MockData struct {
 
 func (m *MockData) RenderTable(w io.Writer) error {
 	tw := NewTabWriter(w)
-	_, _ = fmt.Fprintf(tw, "NAME\n%s\n", m.Name)
+	if _, err := fmt.Fprintf(tw, "NAME\n%s\n", m.Name); err != nil {
+		return err
+	}
 	return tw.Flush()
+}
+
+type NonTableData struct {
+	ID string `json:"id"`
 }
 
 func TestFormatter_Print(t *testing.T) {
@@ -36,6 +44,18 @@ func TestFormatter_Print(t *testing.T) {
 		}
 	})
 
+	t.Run("YAML", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		f := &Formatter{Format: FormatYAML, Out: buf}
+		if err := f.Print(data); err != nil {
+			t.Fatal(err)
+		}
+		expected := "name: Test\n"
+		if buf.String() != expected {
+			t.Errorf("expected %q, got %q", expected, buf.String())
+		}
+	})
+
 	t.Run("Table", func(t *testing.T) {
 		buf := &bytes.Buffer{}
 		f := &Formatter{Format: FormatTable, Out: buf}
@@ -46,4 +66,144 @@ func TestFormatter_Print(t *testing.T) {
 			t.Errorf("unexpected table output: %q", buf.String())
 		}
 	})
+
+	t.Run("Table Fallback", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		f := &Formatter{Format: FormatTable, Out: buf}
+		nonTableData := &NonTableData{ID: "123"}
+		if err := f.Print(nonTableData); err != nil {
+			t.Fatal(err)
+		}
+		expected := "{\"id\":\"123\"}\n"
+		if buf.String() != expected {
+			t.Errorf("expected %q, got %q", expected, buf.String())
+		}
+	})
+}
+
+func TestRawResponse(t *testing.T) {
+	t.Run("RenderTable Success", func(t *testing.T) {
+		jsonData := `{"name": "Test"}`
+		target := &MockData{}
+		rr := NewRawResponse(strings.NewReader(jsonData), target)
+		buf := &bytes.Buffer{}
+		if err := rr.RenderTable(buf); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(buf.String(), "NAME") || !strings.Contains(buf.String(), "Test") {
+			t.Errorf("unexpected table output: %q", buf.String())
+		}
+	})
+
+	t.Run("RenderTable Fallback", func(t *testing.T) {
+		jsonData := `{"id": "123"}`
+		target := &NonTableData{}
+		rr := NewRawResponse(strings.NewReader(jsonData), target)
+		buf := &bytes.Buffer{}
+		if err := rr.RenderTable(buf); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(buf.String(), "123") {
+			t.Errorf("unexpected output: %q", buf.String())
+		}
+	})
+
+	t.Run("RenderTable Decode Error", func(t *testing.T) {
+		invalidJSON := `{invalid}`
+		target := &MockData{}
+		rr := NewRawResponse(strings.NewReader(invalidJSON), target)
+		buf := &bytes.Buffer{}
+		if err := rr.RenderTable(buf); err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("MarshalJSON Success", func(t *testing.T) {
+		jsonData := `{"name": "Test"}`
+		target := &MockData{}
+		rr := NewRawResponse(strings.NewReader(jsonData), target)
+		b, err := rr.MarshalJSON()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded MockData
+		if err := json.Unmarshal(b, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if decoded.Name != "Test" {
+			t.Errorf("expected Test, got %s", decoded.Name)
+		}
+	})
+
+	t.Run("MarshalJSON Decode Error", func(t *testing.T) {
+		invalidJSON := `{invalid}`
+		target := &MockData{}
+		rr := NewRawResponse(strings.NewReader(invalidJSON), target)
+		if _, err := rr.MarshalJSON(); err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+
+	t.Run("MarshalYAML Success", func(t *testing.T) {
+		jsonData := `{"name": "Test"}`
+		target := &MockData{}
+		rr := NewRawResponse(strings.NewReader(jsonData), target)
+		y, err := rr.MarshalYAML()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, ok := y.(*MockData)
+		if !ok {
+			t.Fatalf("expected *MockData, got %T", y)
+		}
+		if data.Name != "Test" {
+			t.Errorf("expected Test, got %s", data.Name)
+		}
+	})
+
+	t.Run("MarshalYAML Decode Error", func(t *testing.T) {
+		invalidJSON := `{invalid}`
+		target := &MockData{}
+		rr := NewRawResponse(strings.NewReader(invalidJSON), target)
+		if _, err := rr.MarshalYAML(); err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+}
+
+type ErrorWriter struct {
+	Called bool
+}
+
+func (e *ErrorWriter) Write(p []byte) (n int, err error) {
+	e.Called = true
+	return 0, errors.New("write error")
+}
+
+func TestFormatter_Print_Errors(t *testing.T) {
+	data := &MockData{Name: "Test"}
+
+	t.Run("JSON Write Error", func(t *testing.T) {
+		ew := &ErrorWriter{}
+		f := &Formatter{Format: FormatJSON, Out: ew}
+		if err := f.Print(data); err == nil {
+			t.Error("expected error, got nil")
+		}
+		if !ew.Called {
+			t.Error("expected Write to be called")
+		}
+	})
+}
+
+func TestNewTabWriter(t *testing.T) {
+	buf := &bytes.Buffer{}
+	tw := NewTabWriter(buf)
+	if tw == nil {
+		t.Fatal("expected non-nil tabwriter")
+	}
+	_, _ = fmt.Fprintln(tw, "A\tB")
+	_ = tw.Flush()
+	if !strings.Contains(buf.String(), "A") {
+		t.Errorf("expected output to contain A, got %q", buf.String())
+	}
 }

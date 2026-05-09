@@ -15,6 +15,9 @@ func WithLogger(ctx context.Context, l *slog.Logger) context.Context {
 
 // FromContext retrieves the logger from context.
 func FromContext(ctx context.Context) *slog.Logger {
+	if ctx == nil {
+		return slog.Default()
+	}
 	if l, ok := ctx.Value(contextKey{}).(*slog.Logger); ok {
 		return l
 	}
