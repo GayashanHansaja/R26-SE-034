@@ -4,6 +4,7 @@ go 1.26.2
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
+	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/getkin/kin-openapi v0.137.0
 	github.com/goccy/go-yaml v1.19.2
@@ -21,7 +22,6 @@ require (
 
 require (
 	github.com/alessio/shellescape v1.4.1 // indirect
-	github.com/alicebob/miniredis/v2 v2.37.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
