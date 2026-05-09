@@ -166,8 +166,9 @@ signs:
   - cmd: cosign
     args:
       - "sign-blob"
-      - "--output-signature=${signature}"
+      - "--bundle=${signature}"
       - "${artifact}"
+      - "--yes"
     artifacts: checksum
 
 snapshot:
