@@ -148,9 +148,8 @@ URL, and authentication headers, and displays the response status and latency.`,
 			Path:    api.URL, // In this case, URL is absolute as per register
 			BaseURL: "",      // Empty because Path is the full URL
 			Auth: connector.AuthConfig{
-				Type:   api.AuthType,
-				Header: api.AuthHeader,
-				Key:    api.AuthKey,
+				Type: api.AuthType,
+				Key:  api.AuthKey,
 			},
 		}
 

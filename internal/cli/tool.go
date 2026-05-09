@@ -1,15 +1,15 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/nimendra/ERPBridge/internal/idp"
 	"github.com/nimendra/ERPBridge/internal/mcp"
 	"github.com/nimendra/ERPBridge/internal/output"
@@ -18,22 +18,202 @@ import (
 
 var toolCmd = &cobra.Command{
 	Use:   "tool",
-	Short: "Manage MCP tool schemas",
-	Long: `The tool command provides utilities to bridge the gap between raw ERP APIs 
-and the Model Context Protocol (MCP). It includes generators to transform 
-API definitions or OpenAPI specs into MCP Tool schemas, and validators to 
-ensure those schemas are ready for AI agent consumption.`,
+	Short: "Manage MCP tool resources (V2 Control Plane)",
+}
+
+var toolApplyCmd = &cobra.Command{
+	Use:   "apply -f [file]",
+	Short: "Apply a tool schema to the registry (declarative)",
+	Example: `  bridgectl tool apply -f list_employees.yaml
+  bridgectl tool apply -f schemas/hr/`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		filePath, _ := cmd.Flags().GetString("file")
+		if filePath == "" {
+			return fmt.Errorf("file path is required")
+		}
+
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		var tool mcp.Tool
+		if strings.HasSuffix(filePath, ".yaml") || strings.HasSuffix(filePath, ".yml") {
+			if err := yaml.Unmarshal(data, &tool); err != nil {
+				return fmt.Errorf("unmarshal yaml: %w", err)
+			}
+		} else {
+			if err := json.Unmarshal(data, &tool); err != nil {
+				return fmt.Errorf("unmarshal json: %w", err)
+			}
+		}
+
+		ctx := cfg.ActiveContext()
+		url := ctx.MCPServer + "/apis/erpbridge.io/v1/tools"
+
+		payload, _ := json.Marshal(tool)
+		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodPost, url, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("apply failed: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode >= 400 {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+		}
+
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "tool %s@%s applied successfully\n", tool.Metadata.Name, tool.Metadata.Version)
+		return nil
+	},
+}
+
+var toolGetCmd = &cobra.Command{
+	Use:   "get [name]",
+	Short: "Display one or many tool resources",
+	Example: `  bridgectl tool get
+  bridgectl tool get list_employees -o yaml`,
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) != 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		ctx := cfg.ActiveContext()
+		url := ctx.MCPServer + "/apis/erpbridge.io/v1/tools"
+
+		resp, err := http.Get(url)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		var tools []*mcp.Tool
+		if err := json.NewDecoder(resp.Body).Decode(&tools); err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+
+		var completions []string
+		for _, t := range tools {
+			if strings.HasPrefix(t.Metadata.Name, toComplete) {
+				completions = append(completions, t.Metadata.Name)
+			}
+		}
+		return completions, cobra.ShellCompDirectiveNoFileComp
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cfg.ActiveContext()
+		url := ctx.MCPServer + "/apis/erpbridge.io/v1/tools"
+
+		resp, err := http.Get(url)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		var tools []*mcp.Tool
+		if err := json.NewDecoder(resp.Body).Decode(&tools); err != nil {
+			return err
+		}
+
+		outputFormat, _ := cmd.Flags().GetString("output")
+
+		if len(args) > 0 {
+			name, version := mcp.ParseToolIdentifier(args[0])
+			var target *mcp.Tool
+			for _, t := range tools {
+				if t.Metadata.Name == name && (version == "" || t.Metadata.Version == version) {
+					target = t
+					break
+				}
+			}
+
+			if target == nil {
+				return fmt.Errorf("tool %s not found", args[0])
+			}
+
+			switch outputFormat {
+			case "yaml":
+				y, _ := yaml.Marshal(target)
+				fmt.Println(string(y))
+				return nil
+			case "json":
+				j, _ := json.MarshalIndent(target, "", "  ")
+				fmt.Println(string(j))
+				return nil
+			}
+			tools = []*mcp.Tool{target}
+		}
+
+		res := &ToolListResponse{Tools: tools}
+		return formatter.Print(res)
+	},
+}
+
+type ToolListResponse struct {
+	Tools []*mcp.Tool `json:"tools"`
+}
+
+func (r *ToolListResponse) RenderTable(w io.Writer) error {
+	tw := output.NewTabWriter(w)
+	_, _ = fmt.Fprintln(tw, "NAME\tMODULE\tVERSION\tSTATUS")
+	for _, t := range r.Tools {
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+			t.Metadata.Name, t.Metadata.Module, t.Metadata.Version, t.Metadata.Status)
+	}
+	return tw.Flush()
+}
+
+var toolDescribeCmd = &cobra.Command{
+	Use:   "describe [name]",
+	Short: "Show details of a specific tool resource",
+	Args:  cobra.ExactArgs(1),
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return toolGetCmd.ValidArgsFunction(cmd, args, toComplete)
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// For now, reuse GET with rich formatting or implement separate describe logic
+		fmt.Printf("Describing tool: %s (Not fully implemented, use 'get -o yaml' for now)\n", args[0])
+		return nil
+	},
+}
+
+var toolValidateCmd = &cobra.Command{
+	Use:   "validate -f [file]",
+	Short: "Locally validate a tool schema",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		filePath, _ := cmd.Flags().GetString("file")
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		var tool mcp.Tool
+		if strings.HasSuffix(filePath, ".yaml") || strings.HasSuffix(filePath, ".yml") {
+			_ = yaml.Unmarshal(data, &tool)
+		} else {
+			_ = json.Unmarshal(data, &tool)
+		}
+
+		if tool.Metadata.Name == "" {
+			return fmt.Errorf("validation failed: metadata.name is missing")
+		}
+		if tool.Metadata.Version == "" {
+			return fmt.Errorf("validation failed: metadata.version is missing")
+		}
+
+		fmt.Printf("✓ tool %s@%s is locally valid\n", tool.Metadata.Name, tool.Metadata.Version)
+		return nil
+	},
 }
 
 var toolGenerateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Auto-generate an MCP tool schema from a registered API or OpenAPI spec",
-	Long: `Create a protocol-compliant MCP tool definition automatically. 
-You can generate a tool from an API already registered in bridgectl, 
-or point directly to an OpenAPI YAML/JSON file to batch-generate 
-definitions for all operations.`,
-	Example: `  bridgectl tool generate --api get-invoices
-  bridgectl tool generate --api my-erp --openapi ./specs/erp.yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		apiName, _ := cmd.Flags().GetString("api")
 		openapiURL, _ := cmd.Flags().GetString("openapi")
@@ -64,218 +244,55 @@ definitions for all operations.`,
 			return err
 		}
 
-		resp := &ToolGenerateResponse{
-			ToolName: tool.Name,
-			Module:   tool.Module,
-			Path:     fmt.Sprintf("schemas/%s/%s.json", tool.Module, tool.Name),
-		}
-
-		return formatter.Print(resp)
+		fmt.Printf("Generated tool: %s\n", tool.Metadata.Name)
+		return nil
 	},
 }
 
-// ToolGenerateResponse contains details about a newly generated MCP tool schema.
-type ToolGenerateResponse struct {
-	ToolName string `json:"toolName"`
-	Module   string `json:"module"`
-	Path     string `json:"path"`
-}
-
-// RenderTable implements the output.TableRenderer interface.
-func (r *ToolGenerateResponse) RenderTable(w io.Writer) error {
-	_, _ = fmt.Fprintf(w, "Generating tool schema for  %s\n\n", r.ToolName)
-	_, _ = fmt.Fprintf(w, "  Saving schema...       ✓ %s\n\n", r.Path)
-	_, _ = fmt.Fprintf(w, "Tool name    %s\n", r.ToolName)
-	_, _ = fmt.Fprintln(w, "\n✓ Tool generated successfully.")
-	return nil
-}
-
-var toolListCmd = &cobra.Command{
-	Use:     "list",
-	Short:   "List all generated MCP tool schemas",
-	Long:    `Scan the schemas/ directory and display all available MCP tool definitions.`,
-	Example: `  bridgectl tool list`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		schemasDir := "schemas"
-		var items []ToolListItem
-
-		err := filepath.Walk(schemasDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if !info.IsDir() && filepath.Ext(path) == ".json" {
-				data, err := os.ReadFile(path)
-				if err != nil {
-					return nil
-				}
-				var t mcp.Tool
-				if err := json.Unmarshal(data, &t); err != nil {
-					return nil
-				}
-				items = append(items, ToolListItem{
-					Name:        t.Name,
-					Module:      t.Module,
-					Status:      "active",
-					GeneratedAt: info.ModTime(),
-				})
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-
-		resp := &ToolListResponse{Items: items, Total: len(items)}
-		return formatter.Print(resp)
-	},
-}
-
-// ToolListItem represents a single MCP tool found in the schemas directory.
-type ToolListItem struct {
-	Name        string    `json:"name"`
-	Module      string    `json:"module"`
-	Status      string    `json:"status"`
-	GeneratedAt time.Time `json:"generatedAt"`
-}
-
-// ToolListResponse wraps a list of ToolListItem for table rendering.
-type ToolListResponse struct {
-	Items []ToolListItem `json:"items"`
-	Total int            `json:"total"`
-}
-
-// RenderTable implements the output.TableRenderer interface.
-func (r *ToolListResponse) RenderTable(w io.Writer) error {
-	tw := output.NewTabWriter(w)
-	_, _ = fmt.Fprintln(tw, "NAME\tMODULE\tSTATUS\tGENERATED")
-	for _, item := range r.Items {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
-			item.Name, item.Module, item.Status,
-			item.GeneratedAt.Format("2006-01-02 15:04"))
-	}
-	return tw.Flush()
-}
-
-var toolInvokeCmd = &cobra.Command{
-	Use:   "invoke [name] [arguments]",
-	Short: "Invoke an MCP tool directly",
-	Long: `Perform a direct invocation of an MCP tool through the middleware's 
-internal API. This bypasses the full MCP transport but follows the same 
-logic (including caching and validation), making it ideal for testing 
-how an AI agent would experience the tool.`,
-	Example: `  bridgectl tool invoke finance.get-invoices '{"page": 1}'`,
-	Args:    cobra.RangeArgs(1, 2),
+var toolDeleteCmd = &cobra.Command{
+	Use:   "delete [name] [version]",
+	Short: "Remove a tool from the registry",
+	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		var argMap map[string]any
-		if len(args) > 1 {
-			if err := json.Unmarshal([]byte(args[1]), &argMap); err != nil {
-				return NewError(CodeBadArgs, "INVALID_ARGUMENTS",
-					fmt.Sprintf("Invalid arguments JSON: %v", err),
-					"Ensure the arguments are a valid JSON string, e.g., '{\"page\": 1}'.")
-			}
-		}
+		version := args[1]
 
 		ctx := cfg.ActiveContext()
-		mcpURL := ctx.MCPServer + "/api/tools/invoke"
+		url := fmt.Sprintf("%s/apis/erpbridge.io/v1/tools?name=%s&version=%s", ctx.MCPServer, name, version)
 
-		reqBody, _ := json.Marshal(mcp.ToolCallRequest{
-			Name:      name,
-			Arguments: argMap,
-		})
-
-		// Use manual HTTP client for direct invoke
-		var netClient = &http.Client{
-			Timeout: time.Second * 10,
-		}
-
-		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodPost, mcpURL, strings.NewReader(string(reqBody)))
+		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodDelete, url, nil)
 		if err != nil {
 			return err
 		}
-		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := netClient.Do(req)
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return fmt.Errorf("MCP server call failed: %w", err)
+			return err
 		}
 		defer func() { _ = resp.Body.Close() }()
 
-		var toolResult mcp.ToolResult
-		if err := json.NewDecoder(resp.Body).Decode(&toolResult); err != nil {
-			return fmt.Errorf("decode result failed: %w", err)
+		if resp.StatusCode >= 400 {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("delete failed (%d): %s", resp.StatusCode, string(body))
 		}
 
-		errOut := cmd.ErrOrStderr()
-		_, _ = fmt.Fprintf(errOut, "invoking %s\n", name)
-		if len(args) > 1 {
-			_, _ = fmt.Fprintf(errOut, "args     %s\n\n", args[1])
-		}
-
-		return formatter.Print(toolResult)
-	},
-}
-
-var toolValidateCmd = &cobra.Command{
-	Use:   "validate [file]",
-	Short: "Validate an MCP tool schema (JSON) or an OpenAPI spec (YAML)",
-	Long: `Pre-flight check for schema files. This command validates that 
-a JSON schema follows the MCP tool structure or that an OpenAPI 
-specification can be correctly parsed and transformed by ERPBridge.`,
-	Example: `  bridgectl tool validate schemas/finance/get-invoices.json
-  bridgectl tool validate ./specs/legacy-erp.yaml`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		path := args[0]
-		ext := filepath.Ext(path)
-
-		if ext == ".json" {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return NewError(CodeNotFound, "FILE_NOT_FOUND",
-					fmt.Sprintf("schema file not found: %s", path),
-					"Check the file path and try again.")
-			}
-			var tool mcp.Tool
-			if err := json.Unmarshal(data, &tool); err != nil {
-				return NewError(CodeBadArgs, "INVALID_SCHEMA",
-					fmt.Sprintf("invalid MCP tool schema: %v", err),
-					"Ensure the file contains a valid MCP Tool JSON schema.")
-			}
-			if tool.Name == "" {
-				return NewError(CodeBadArgs, "MISSING_TOOL_NAME",
-					"invalid schema: missing 'name' field",
-					"MCP tool schemas must have a 'name' field.")
-			}
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "✓ MCP tool schema '%s' is valid\n", path)
-			return nil
-		}
-
-		if ext == ".yaml" || ext == ".yml" {
-			gen := idp.NewGenerator("", RootLog)
-			// Mock API for validation context
-			mockAPI := idp.API{Name: "validate", Module: "test"}
-			_, err := gen.GenerateFromOpenAPI(cmd.Context(), mockAPI, path)
-			if err != nil {
-				return NewError(CodeBadArgs, "INVALID_OPENAPI",
-					fmt.Sprintf("invalid OpenAPI spec: %v", err),
-					"Ensure the file is a valid OpenAPI specification compatible with ERPBridge.")
-			}
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "✓ OpenAPI specification '%s' is valid and compatible with ERPBridge\n", path)
-			return nil
-		}
-
-		return fmt.Errorf("unsupported file extension: %s (expected .json, .yaml, or .yml)", ext)
+		fmt.Printf("tool %s@%s deleted\n", name, version)
+		return nil
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(toolCmd)
-	toolCmd.AddCommand(toolGenerateCmd)
-	toolCmd.AddCommand(toolListCmd)
-	toolCmd.AddCommand(toolInvokeCmd)
+	toolCmd.AddCommand(toolApplyCmd)
+	toolCmd.AddCommand(toolGetCmd)
+	toolCmd.AddCommand(toolDescribeCmd)
 	toolCmd.AddCommand(toolValidateCmd)
+	toolCmd.AddCommand(toolGenerateCmd)
+	toolCmd.AddCommand(toolDeleteCmd)
 
+	toolApplyCmd.Flags().StringP("file", "f", "", "Path to the tool schema file")
+	toolGetCmd.Flags().StringP("output", "o", "table", "Output format (table|yaml|json)")
+	toolValidateCmd.Flags().StringP("file", "f", "", "Path to the tool schema file")
 	toolGenerateCmd.Flags().String("api", "", "Name of the registered API to generate from")
 	toolGenerateCmd.Flags().String("openapi", "", "URL or path to an OpenAPI spec")
 	_ = toolGenerateCmd.MarkFlagRequired("api")
