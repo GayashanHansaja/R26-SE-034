@@ -16,7 +16,7 @@ import (
 func TestServer_RegisterTool(t *testing.T) {
 	log := logger.Init()
 	mockConn := &MockConnector{}
-	s := NewServer(mockConn, nil, log)
+	s := NewServer(mockConn, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	tool := &Tool{
 		Name:        "test-tool",

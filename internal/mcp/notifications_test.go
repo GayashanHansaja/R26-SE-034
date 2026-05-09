@@ -62,7 +62,7 @@ func TestServer_NotificationsAndLogs(t *testing.T) {
 	rootLog := logger.Init()
 
 	// 2. Setup Server
-	s := NewServer(nil, nil, rootLog)
+	s := NewServer(nil, nil, rootLog, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	// 3. Setup Mock Session
 	mSess := &mockSession{

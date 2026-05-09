@@ -20,7 +20,7 @@ import (
 
 func TestServer_RegisterResource(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log)
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	r := &Resource{
 		Name:        "test-resource",
@@ -46,7 +46,7 @@ func TestServer_HandleResourceRead(t *testing.T) {
 			}, nil
 		},
 	}
-	s := NewServer(mockConn, nil, log)
+	s := NewServer(mockConn, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	r := &Resource{
 		Name:        "test-resource",
@@ -74,7 +74,7 @@ func TestServer_HandleResourceRead(t *testing.T) {
 
 func TestServer_RegisterPrompt(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log)
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	p := &Prompt{
 		Name:        "test-prompt",
@@ -93,7 +93,7 @@ func TestServer_RegisterPrompt(t *testing.T) {
 
 func TestServer_HandlePromptGet(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log)
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	p := &Prompt{
 		Name:     "test-prompt",
@@ -134,7 +134,7 @@ func TestServer_Completions(t *testing.T) {
 
 func TestServer_RegisterToolMarshaling(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log)
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	schema := InputSchema{
 		Type: "object",
@@ -167,7 +167,7 @@ func TestServer_RegisterToolMarshaling(t *testing.T) {
 
 func TestServer_ServeHTTP(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log)
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 	mux := http.NewServeMux()
 	s.ServeHTTP(mux, "http://localhost:8080")
 
@@ -181,7 +181,7 @@ func TestServer_ServeHTTP(t *testing.T) {
 
 func TestServer_LogStream(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log)
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	req := httptest.NewRequest("GET", "/api/logs/stream", nil)
 
@@ -206,7 +206,7 @@ func TestServer_LogStream(t *testing.T) {
 
 func TestServer_HttpEndpoints(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log)
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 	assert.NotNil(t, s.MCPServer())
 
 	// Test cache flush (not enabled)
@@ -252,7 +252,7 @@ func TestServer_HttpEndpoints(t *testing.T) {
 
 func TestServer_DirectInvoke(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log)
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
 
 	s.RegisterTool(&Tool{
 		Name: "test-invoke",

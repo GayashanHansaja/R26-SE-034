@@ -32,8 +32,14 @@ type Server struct {
 	toolMiddlewares []server.ToolHandlerMiddleware
 }
 
+// RateLimitConfig defines the configuration for the tool rate limiter.
+type RateLimitConfig struct {
+	RequestsPerSecond float64
+	Burst             int
+}
+
 // NewServer creates a new Server instance with the provided connector, cache manager, and logger.
-func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Logger) *Server {
+func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Logger, rateCfg RateLimitConfig) *Server {
 	s := server.NewMCPServer("ERPBridge", "1.0.0",
 		server.WithLogging(),
 		server.WithResourceCompletionProvider(&ResourceCompletionProvider{}),
@@ -58,7 +64,9 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 	}
 
 	// Initialize global tool middlewares
+	rateLimiter := NewRateLimitMiddleware(rateCfg.RequestsPerSecond, rateCfg.Burst)
 	srv.toolMiddlewares = []server.ToolHandlerMiddleware{
+		rateLimiter.Handle(),
 		LoggingMiddleware(srv.log),
 		MetricsMiddleware(),
 	}
