@@ -40,4 +40,31 @@ var (
 		Name: "cache_misses_total",
 		Help: "Total number of cache misses",
 	})
+
+	// Server Lifecycle
+	ServerStartsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mcp_server_starts_total",
+		Help: "Total number of MCP server starts",
+	})
+
+	ServerStopsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mcp_server_stops_total",
+		Help: "Total number of MCP server stops",
+	})
+
+	// Session Metrics
+	SessionsStartedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mcp_sessions_started_total",
+		Help: "Total number of MCP sessions started",
+	})
+
+	SessionsEndedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mcp_sessions_ended_total",
+		Help: "Total number of MCP sessions ended",
+	})
+
+	SessionsActive = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "mcp_sessions_active",
+		Help: "Number of active MCP sessions",
+	})
 )

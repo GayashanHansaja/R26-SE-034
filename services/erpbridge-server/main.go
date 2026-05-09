@@ -98,6 +98,10 @@ func main() {
 	// Start Reconciliation Loop
 	go server.StartController(ctx)
 
+	// Trigger Server Start Hook
+	server.TelemetryHooks.OnServerStart()
+	defer server.TelemetryHooks.OnServerStop()
+
 	if useStdio {
 		slog.Info("ERPBridge Server running in STDIO mode")
 		if err := mcp_server.ServeStdio(server.MCPServer()); err != nil {

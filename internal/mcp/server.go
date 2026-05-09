@@ -32,6 +32,8 @@ type Server struct {
 	resources       map[string]*Resource
 	prompts         map[string]*Prompt
 	Notifier        *CustomNotifier
+	TelemetryHooks  *TelemetryHooks
+	BusinessHooks   *BusinessHooks
 	toolMiddlewares []server.ToolHandlerMiddleware
 }
 
@@ -47,6 +49,8 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 		server.WithLogging(),
 		server.WithResourceCompletionProvider(&ResourceCompletionProvider{}),
 		server.WithPromptCompletionProvider(&PromptCompletionProvider{}),
+		server.WithOutputSchemaValidation(),
+		server.WithHooks(&server.Hooks{}),
 	)
 
 	mcpHandler := logger.NewMCPHandler(s, "mcp")
@@ -72,6 +76,12 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 		Notifier:  NewCustomNotifier(s),
 	}
 
+	srv.TelemetryHooks = NewTelemetryHooks(mcpLog)
+	srv.TelemetryHooks.Register(s)
+
+	srv.BusinessHooks = NewBusinessHooks(srv.Notifier, mcpLog)
+	srv.BusinessHooks.Register(s)
+
 	// Initialize global tool middlewares
 	rateLimiter := NewRateLimitMiddleware(rateCfg.RequestsPerSecond, rateCfg.Burst)
 	srv.toolMiddlewares = []server.ToolHandlerMiddleware{
@@ -85,103 +95,78 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 	return srv
 }
 
-// RegisterBuiltinTools registers internal system tools.
+// RegisterBuiltinTools registers internal system tools using structured handlers.
 func (s *Server) RegisterBuiltinTools() {
-	s.RegisterTool(&Tool{
-		APIVersion: "erpbridge.io/v1",
-		Kind:       "MCPTool",
-		Metadata: Metadata{
-			Name:    "system.progress_test",
-			Version: "1.0.0",
-			Module:  "system",
-		},
-		Spec: ToolSpec{
-			Description: Description{
-				Short: "A demonstration tool that sends real-time progress notifications.",
-			},
-			InputSchema: InputSchema{
-				Type: "object",
-				Properties: map[string]Property{
-					"steps": {
-						Type:        "integer",
-						Description: "Number of steps to simulate (max 100).",
-						Default:     10,
-					},
-				},
-			},
-		},
-		Handler: func(ctx context.Context, args map[string]any) (*ToolResult, error) {
-			steps := 10
-			if s, ok := args["steps"].(float64); ok {
-				steps = int(s)
-			}
-			if steps > 100 {
-				steps = 100
-			}
+	// system.progress_test
+	type ProgressTestInput struct {
+		Steps int `json:"steps" jsonschema:"description=Number of steps to simulate (max 100),default=10"`
+	}
 
-			for i := 1; i <= steps; i++ {
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case <-time.After(200 * time.Millisecond):
-					s.Notifier.SendProgress(ctx, i, steps, fmt.Sprintf("Processing step %d/%d...", i, steps))
-				}
-			}
+	progressTool := mcp.NewTool("system.progress_test",
+		mcp.WithDescription("A demonstration tool that sends real-time progress notifications."),
+		mcp.WithInputSchema[ProgressTestInput](),
+		mcp.WithToolIcons(mcp.Icon{
+			Src:      "https://erpbridge.io/icons/progress.png",
+			MIMEType: "image/png",
+		}),
+	)
 
-			return &ToolResult{
-				Result: map[string]any{
-					"status":  "completed",
-					"message": fmt.Sprintf("Finished %d steps successfully.", steps),
-				},
-			}, nil
-		},
+	progressHandler := mcp.NewStructuredToolHandler(func(ctx context.Context, request mcp.CallToolRequest, input ProgressTestInput) (*mcp.CallToolResult, error) {
+		steps := input.Steps
+		if steps > 100 {
+			steps = 100
+		}
+
+		for i := 1; i <= steps; i++ {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(200 * time.Millisecond):
+				s.Notifier.SendProgress(ctx, i, steps, fmt.Sprintf("Processing step %d/%d...", i, steps))
+			}
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("Finished %d steps successfully.", steps)), nil
 	})
 
-	s.RegisterTool(&Tool{
-		APIVersion: "erpbridge.io/v1",
-		Kind:       "MCPTool",
-		Metadata: Metadata{
-			Name:    "system.sensitive_log_test",
-			Version: "1.0.0",
-			Module:  "system",
-		},
-		Spec: ToolSpec{
-			Description: Description{
-				Short: "A demonstration tool that logs sensitive data to verify redaction.",
-			},
-			InputSchema: InputSchema{
-				Type: "object",
-				Properties: map[string]Property{
-					"token": {
-						Type:        "string",
-						Description: "A sensitive token that should be redacted.",
-					},
-					"message": {
-						Type:        "string",
-						Description: "A normal message.",
-					},
-				},
-			},
-		},
-		Handler: func(ctx context.Context, args map[string]any) (*ToolResult, error) {
-			token, _ := args["token"].(string)
-			msg, _ := args["message"].(string)
+	// Apply global middlewares
+	for i := len(s.toolMiddlewares) - 1; i >= 0; i-- {
+		progressHandler = s.toolMiddlewares[i](progressHandler)
+	}
 
-			// Log using the composite logger which includes MCPHandler
-			s.log.InfoContext(ctx, "Sensitive data received",
-				slog.String("token", token), // Should be redacted by field name
-				slog.String("message", msg), // Should be preserved
-				slog.Any("raw_args", args),  // Should be redacted by keys in map
-			)
+	s.mcpServer.AddTool(progressTool, progressHandler)
 
-			return &ToolResult{
-				Result: map[string]any{
-					"status":  "success",
-					"message": "Logs emitted. Check your MCP client logs.",
-				},
-			}, nil
-		},
+	// system.sensitive_log_test
+	type SensitiveLogTestInput struct {
+		Token   string `json:"token" jsonschema:"description=A sensitive token that should be redacted"`
+		Message string `json:"message" jsonschema:"description=A normal message"`
+	}
+
+	sensitiveLogTool := mcp.NewTool("system.sensitive_log_test",
+		mcp.WithDescription("A demonstration tool that logs sensitive data to verify redaction."),
+		mcp.WithInputSchema[SensitiveLogTestInput](),
+		mcp.WithToolIcons(mcp.Icon{
+			Src:      "https://erpbridge.io/icons/security.png",
+			MIMEType: "image/png",
+		}),
+	)
+
+	sensitiveLogHandler := mcp.NewStructuredToolHandler(func(ctx context.Context, request mcp.CallToolRequest, input SensitiveLogTestInput) (*mcp.CallToolResult, error) {
+		// Log using the composite logger which includes MCPHandler
+		s.log.InfoContext(ctx, "Sensitive data received",
+			slog.String("token", input.Token),
+			slog.String("message", input.Message),
+		)
+
+		return mcp.NewToolResultText("Logs emitted. Check your MCP client logs."), nil
 	})
+
+	// Apply global middlewares
+	for i := len(s.toolMiddlewares) - 1; i >= 0; i-- {
+		sensitiveLogHandler = s.toolMiddlewares[i](sensitiveLogHandler)
+	}
+
+	s.mcpServer.AddTool(sensitiveLogTool, sensitiveLogHandler)
 }
 
 // ResourceCompletionProvider implements the mcp-go completion provider for resources.
