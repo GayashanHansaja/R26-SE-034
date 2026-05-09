@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	mcp_server "github.com/mark3labs/mcp-go/server"
+	"github.com/nimendra/ERPBridge/internal/banner"
 	"github.com/nimendra/ERPBridge/internal/cache"
 	"github.com/nimendra/ERPBridge/internal/connector"
 	"github.com/nimendra/ERPBridge/internal/logger"
@@ -23,6 +24,9 @@ import (
 var version = "dev"
 
 func main() {
+	// Print startup banner
+	banner.Print(os.Stdout, "ERPBridge Server", version)
+
 	stdioFlag := flag.Bool("stdio", false, "Run in STDIO transport mode")
 	flag.Parse()
 
