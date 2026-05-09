@@ -6,6 +6,17 @@ import (
 )
 
 func TestLoad_Defaults(t *testing.T) {
+	// Setup temporary home directory
+	tmpDir, err := os.MkdirTemp("", "bridgectl-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
 	// Ensure no env vars interfere
 	_ = os.Unsetenv("BRIDGE_CONTEXT")
 	_ = os.Unsetenv("BRIDGE_SERVER")
@@ -26,6 +37,17 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_EnvOverrides(t *testing.T) {
+	// Setup temporary home directory
+	tmpDir, err := os.MkdirTemp("", "bridgectl-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
 	_ = os.Setenv("BRIDGE_SERVER", "http://overridden:8082")
 	defer func() { _ = os.Unsetenv("BRIDGE_SERVER") }()
 

@@ -88,16 +88,15 @@ func applyEnvOverrides(cfg *Config) {
 		ctx.Auth.Key = v // Basic Auth password maps to key field
 	}
 
-	cfg.Contexts[cfg.CurrentContext] = *ctx
+	cfg.Contexts[cfg.CurrentContext] = ctx
 }
 
-func (c *Config) ActiveContext() *Context {
+func (c *Config) ActiveContext() Context {
 	ctx, ok := c.Contexts[c.CurrentContext]
 	if !ok {
-		def := defaultContext()
-		return &def
+		return defaultContext()
 	}
-	return &ctx
+	return ctx
 }
 
 func configPath() string {
