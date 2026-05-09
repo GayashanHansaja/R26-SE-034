@@ -105,6 +105,19 @@ func (s *Store) List() ([]*Tool, error) {
 	return tools, nil
 }
 
+// GetStateHash returns a string representing the current state of the tools table.
+// This is used to short-circuit reconciliation if no changes have occurred.
+func (s *Store) GetStateHash() (string, error) {
+	query := `SELECT COUNT(*), COALESCE(MAX(updated_at), '') FROM tools`
+	var count int
+	var maxUpdated string
+	err := s.db.QueryRow(query).Scan(&count, &maxUpdated)
+	if err != nil {
+		return "", fmt.Errorf("get state hash: %w", err)
+	}
+	return fmt.Sprintf("%d-%s", count, maxUpdated), nil
+}
+
 // Get retrieves a specific version of a tool.
 func (s *Store) Get(name, version string) (*Tool, error) {
 	query := `SELECT data FROM tools WHERE name = ? AND version = ?`

@@ -127,6 +127,27 @@ func (r *ToolRegistry) ListStable() []*Tool {
 	return result
 }
 
+// Remove removes a specific version of a tool from the registry.
+func (r *ToolRegistry) Remove(name, version string) {
+	if versions, ok := r.tools[name]; ok {
+		delete(versions, version)
+		if len(versions) == 0 {
+			delete(r.tools, name)
+		}
+	}
+}
+
+// ListAll returns all versions of all tools.
+func (r *ToolRegistry) ListAll() []*Tool {
+	var result []*Tool
+	for _, versions := range r.tools {
+		for _, t := range versions {
+			result = append(result, t)
+		}
+	}
+	return result
+}
+
 // ParseToolIdentifier splits "name@version" into "name" and "version".
 func ParseToolIdentifier(id string) (name, version string) {
 	parts := strings.SplitN(id, "@", 2)

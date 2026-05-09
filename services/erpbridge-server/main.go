@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	mcp_server "github.com/mark3labs/mcp-go/server"
 	"github.com/nimendra/ERPBridge/internal/cache"
@@ -88,6 +90,13 @@ func main() {
 		RequestsPerSecond: rateRPS,
 		Burst:             rateBurst,
 	}, dbPath)
+
+	// Setup signal-aware context for background workers
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Start Reconciliation Loop
+	go server.StartController(ctx)
 
 	if useStdio {
 		slog.Info("ERPBridge Server running in STDIO mode")

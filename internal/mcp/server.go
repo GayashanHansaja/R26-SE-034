@@ -28,6 +28,7 @@ type Server struct {
 	mu              sync.RWMutex
 	store           *Store
 	registry        *ToolRegistry
+	lastDesiredHash string
 	resources       map[string]*Resource
 	prompts         map[string]*Prompt
 	Notifier        *CustomNotifier
@@ -80,9 +81,6 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 	}
 
 	srv.RegisterBuiltinTools()
-
-	// Start Reconciliation Loop
-	go srv.StartController(context.Background())
 
 	return srv
 }
@@ -317,21 +315,78 @@ func (s *Server) Reconcile(ctx context.Context) {
 		return
 	}
 
+	// Check if state has changed
+	currentHash, err := s.store.GetStateHash()
+	if err != nil {
+		s.log.Error("failed to get state hash", slog.String("error", err.Error()))
+		return
+	}
+
+	s.mu.RLock()
+	lastHash := s.lastDesiredHash
+	s.mu.RUnlock()
+
+	if currentHash == lastHash {
+		return
+	}
+
+	s.log.Info("reconciling tools", slog.String("old_hash", lastHash), slog.String("new_hash", currentHash))
+
 	desiredTools, err := s.store.List()
 	if err != nil {
 		s.log.Error("failed to list desired tools", slog.String("error", err.Error()))
 		return
 	}
 
-	// Simple reconciliation: Register any tool that is in the store but not in registry,
-	// or has a different version/spec.
+	desiredMap := make(map[string]bool)
 	for _, dt := range desiredTools {
+		key := fmt.Sprintf("%s@%s", dt.Metadata.Name, dt.Metadata.Version)
+		desiredMap[key] = true
+
+		// Existing logic: Register any tool that is in the store but not in registry
 		existing, err := s.registry.Resolve(dt.Metadata.Name, dt.Metadata.Version)
 		if err != nil || existing == nil {
-			s.log.Info("reconciling tool", slog.String("name", dt.Metadata.Name), slog.String("version", dt.Metadata.Version))
+			s.log.Info("reconciling tool (adding/updating)", slog.String("name", dt.Metadata.Name), slog.String("version", dt.Metadata.Version))
 			s.RegisterTool(dt)
 		}
 	}
+
+	// Deletion Reconciliation: Identify tools in actual state that are missing from desired state
+	actualTools := s.registry.ListAll()
+	for _, at := range actualTools {
+		// Builtin system tools are not managed by SQLite
+		if at.Metadata.Module == "system" {
+			continue
+		}
+
+		key := fmt.Sprintf("%s@%s", at.Metadata.Name, at.Metadata.Version)
+		if !desiredMap[key] {
+			s.log.Info("reconciling tool (removing stale)", slog.String("name", at.Metadata.Name), slog.String("version", at.Metadata.Version))
+			s.DeregisterTool(at.Metadata.Name, at.Metadata.Version)
+		}
+	}
+
+	s.mu.Lock()
+	s.lastDesiredHash = currentHash
+	s.mu.Unlock()
+}
+
+// DeregisterTool removes a tool from the server's registry and active MCP server.
+func (s *Server) DeregisterTool(name, version string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.registry.Remove(name, version)
+
+	// Note: mcp-go MCPServer does not currently expose a way to remove tools
+	// from the client-advertised list at runtime. However, by removing it
+	// from our registry, any subsequent tool calls for this name will
+	// fail in handleMCPToolCall.
+
+	s.log.Info("deregistered MCP tool", slog.String("tool_name", name), slog.String("version", version))
+
+	// Notify clients that tools have changed
+	s.mcpServer.SendNotificationToAllClients("notifications/tools/list_changed", nil)
 }
 
 // RegisterTool adds a tool to the server's registry and active MCP server.
