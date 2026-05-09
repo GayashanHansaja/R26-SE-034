@@ -1,9 +1,15 @@
 # ERPBridge: AI-to-ERP Model Context Protocol (MCP) Middleware
 
+[![Build Status](https://github.com/nmdra/ERPBridge/actions/workflows/release.yml/badge.svg)](https://github.com/nmdra/ERPBridge/actions/workflows/release.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26.2+-00ADD8?style=flat&logo=go)](https://go.dev/)
-[![Python Version](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python)](https://www.python.org/)
+[![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/nmdra/ERPBridge)](https://github.com/nmdra/ERPBridge)
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--03--26-blue)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/nmdra/ERPBridge)](https://github.com/nmdra/ERPBridge/releases)
+[![GitHub issues](https://img.shields.io/github/issues/nmdra/ERPBridge)](https://github.com/nmdra/ERPBridge/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/nmdra/ERPBridge)](https://github.com/nmdra/ERPBridge/pulls)
+[![GitHub last commit](https://img.shields.io/github/last-commit/nmdra/ERPBridge)](https://github.com/nmdra/ERPBridge/commits/main)
+[![GitHub Repo Size](https://img.shields.io/github/repo-size/nmdra/ERPBridge)](https://github.com/nmdra/ERPBridge)
 
 **ERPBridge** is a high-performance middleware that bridges legacy Enterprise Resource Planning (ERP) systems with Agentic AI. By leveraging the **Model Context Protocol (MCP)**, it transforms complex ERP APIs into discoverable, type-safe tools that AI agents (such as Claude, Cursor, or custom LLM chains) can interact with seamlessly.
 
