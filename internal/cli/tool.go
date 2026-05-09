@@ -247,6 +247,15 @@ var toolGenerateCmd = &cobra.Command{
 				return err
 			}
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "generated %d tools from OpenAPI spec\n", len(tools))
+
+			outputFormat, _ := cmd.Flags().GetString("output")
+			var out []byte
+			if outputFormat == "yaml" {
+				out, _ = yaml.Marshal(tools)
+			} else {
+				out, _ = json.MarshalIndent(tools, "", "  ")
+			}
+			fmt.Println(string(out))
 			return nil
 		}
 
@@ -255,7 +264,14 @@ var toolGenerateCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Generated tool: %s\n", tool.Metadata.Name)
+		outputFormat, _ := cmd.Flags().GetString("output")
+		var out []byte
+		if outputFormat == "yaml" {
+			out, _ = yaml.Marshal(tool)
+		} else {
+			out, _ = json.MarshalIndent(tool, "", "  ")
+		}
+		fmt.Println(string(out))
 		return nil
 	},
 }
