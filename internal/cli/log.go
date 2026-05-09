@@ -34,9 +34,9 @@ var logStatsCmd = &cobra.Command{
 frequency analysis of log levels and tool invocations.`,
 	Example: `  bridgectl log stats`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, ok := cfg.Contexts[cfg.CurrentContext]
-		if !ok {
-			return fmt.Errorf("no context selected")
+		ctx := cfg.ActiveContext()
+		if err := ValidateServerURL(ctx.Server, "BRIDGE", cfg.CurrentContext); err != nil {
+			return err
 		}
 
 		url := ctx.Server + "/api/logs/recent"
@@ -95,9 +95,9 @@ log level, or a specific request ID.`,
   bridgectl log tail --tool finance.get-invoices
   bridgectl log tail --component mcp`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, ok := cfg.Contexts[cfg.CurrentContext]
-		if !ok {
-			return fmt.Errorf("no context selected")
+		ctx := cfg.ActiveContext()
+		if err := ValidateServerURL(ctx.Server, "BRIDGE", cfg.CurrentContext); err != nil {
+			return err
 		}
 
 		url := ctx.Server + "/api/logs/stream"

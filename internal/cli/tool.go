@@ -49,6 +49,9 @@ var toolApplyCmd = &cobra.Command{
 		}
 
 		ctx := cfg.ActiveContext()
+		if err := ValidateServerURL(ctx.MCPServer, "MCP", cfg.CurrentContext); err != nil {
+			return err
+		}
 		url := ctx.MCPServer + "/apis/erpbridge.io/v1/tools"
 
 		payload, _ := json.Marshal(tool)
@@ -84,6 +87,9 @@ var toolGetCmd = &cobra.Command{
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		ctx := cfg.ActiveContext()
+		if err := ValidateServerURL(ctx.MCPServer, "MCP", cfg.CurrentContext); err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
 		url := ctx.MCPServer + "/apis/erpbridge.io/v1/tools"
 
 		resp, err := http.Get(url)
@@ -107,6 +113,9 @@ var toolGetCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cfg.ActiveContext()
+		if err := ValidateServerURL(ctx.MCPServer, "MCP", cfg.CurrentContext); err != nil {
+			return err
+		}
 		url := ctx.MCPServer + "/apis/erpbridge.io/v1/tools"
 
 		resp, err := http.Get(url)
@@ -225,7 +234,9 @@ var toolGenerateCmd = &cobra.Command{
 
 		api, ok := reg.Get(apiName)
 		if !ok {
-			return fmt.Errorf("API %s not found", apiName)
+			return NewError(CodeNotFound, "API_NOT_FOUND",
+				fmt.Sprintf("API %q not found in local registry", apiName),
+				"A registered API is required to provide base URL and authentication templates. Run 'bridgectl api register' first.")
 		}
 
 		gen := idp.NewGenerator("", RootLog)
@@ -258,6 +269,9 @@ var toolDeleteCmd = &cobra.Command{
 		version := args[1]
 
 		ctx := cfg.ActiveContext()
+		if err := ValidateServerURL(ctx.MCPServer, "MCP", cfg.CurrentContext); err != nil {
+			return err
+		}
 		url := fmt.Sprintf("%s/apis/erpbridge.io/v1/tools?name=%s&version=%s", ctx.MCPServer, name, version)
 
 		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodDelete, url, nil)

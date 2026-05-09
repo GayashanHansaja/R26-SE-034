@@ -51,3 +51,24 @@ func NewError(code int, errCode string, message string, suggestion string) *Agen
 		Suggestion: suggestion,
 	}
 }
+
+// ValidateServerURL checks if the provided URL is non-empty and has a valid protocol.
+func ValidateServerURL(url, serverType, contextName string) error {
+	if url == "" {
+		return NewError(CodePrecondFail, "MISCONFIGURED_CONTEXT",
+			fmt.Sprintf("%s URL is not set for context %q", serverType, contextName),
+			fmt.Sprintf("Update it using 'BRIDGE_%s_SERVER' environment variable or in ~/.bridgectl/config.yaml", serverType))
+	}
+
+	if !hasProtocol(url) {
+		return NewError(CodeBadArgs, "INVALID_URL",
+			fmt.Sprintf("Invalid %s URL %q: missing protocol (http:// or https://)", serverType, url),
+			"Ensure the server URL starts with http:// or https://")
+	}
+
+	return nil
+}
+
+func hasProtocol(url string) bool {
+	return (len(url) >= 7 && url[:7] == "http://") || (len(url) >= 8 && url[:8] == "https://")
+}
