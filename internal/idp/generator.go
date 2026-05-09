@@ -32,36 +32,49 @@ func NewGenerator(schemasDir string, rootLog *slog.Logger) *Generator {
 }
 
 func (g *Generator) Generate(api API) (*mcp.Tool, error) {
+	name := api.Name
+	// Simple intent-based naming heuristic if not already provided
+	if strings.HasPrefix(strings.ToLower(name), "get-") {
+		name = "get_" + strings.TrimPrefix(strings.ToLower(name), "get-")
+	}
+
 	tool := &mcp.Tool{
-		Name:        api.Name,
-		Description: api.Description,
-		Module:      api.Module,
-		InputSchema: mcp.InputSchema{
-			Type:       "object",
-			Properties: make(map[string]mcp.Property),
+		APIVersion: "erpbridge.io/v1",
+		Kind:       "MCPTool",
+		Metadata: mcp.Metadata{
+			Name:    name,
+			Version: "1.0.0",
+			Module:  api.Module,
 		},
-		Endpoint: &mcp.Endpoint{
-			Method: api.Method,
-			Path:   api.URL,
-			Auth: mcp.AuthInfo{
-				Type:     api.AuthType,
-				Header:   api.AuthHeader,
-				KeyRef:   api.AuthKey,
-				Username: api.AuthUsername,
-				Token:    api.AuthToken,
+		Spec: mcp.ToolSpec{
+			Description: mcp.Description{
+				Short: api.Description,
+			},
+			InputSchema: mcp.InputSchema{
+				Type:       "object",
+				Properties: make(map[string]mcp.Property),
+			},
+			Execution: mcp.Execution{
+				Type:     "http",
+				Method:   api.Method,
+				Endpoint: api.URL,
+			},
+			Security: mcp.Security{
+				AuthType:      api.AuthType,
+				CredentialRef: "ERP_PRIMARY_KEY", // Default ref
 			},
 		},
 	}
 
 	if api.Method == "GET" {
-		tool.InputSchema.Properties["page"] = mcp.Property{
+		tool.Spec.InputSchema.Properties["page"] = mcp.Property{
 			Type:        "integer",
 			Description: "Page number for pagination",
 			Default:     1,
 		}
 	}
 
-	g.log.Info("tool generated", slog.String("tool_name", tool.Name))
+	g.log.Info("tool generated", slog.String("tool_name", tool.Metadata.Name))
 	return tool, g.Save(tool)
 }
 
@@ -108,12 +121,62 @@ func (g *Generator) GenerateFromOpenAPI(ctx context.Context, api API, openapiURL
 	var tools []*mcp.Tool
 	for path, pathItem := range doc.Paths.Map() {
 		for method, op := range pathItem.Operations() {
-			toolName := fmt.Sprintf("%s.%s", api.Module, op.OperationID)
-			if op.OperationID == "" {
+			toolName := op.OperationID
+			if toolName == "" {
 				// Sanitize path for tool name
-				safePath := strings.ReplaceAll(strings.Trim(path, "/"), "/", "-")
-				toolName = fmt.Sprintf("%s.%s-%s", api.Module, method, safePath)
+				safePath := strings.ReplaceAll(strings.Trim(path, "/"), "/", "_")
+				safePath = strings.ReplaceAll(safePath, "-", "_")
+
+				prefix := strings.ToLower(method)
+				switch prefix {
+				case "post":
+					prefix = "create"
+				case "get":
+					if strings.Contains(path, "{") {
+						prefix = "get"
+					} else {
+						prefix = "list"
+					}
+				}
+
+				// Remove 'resource_' from path if it exists to keep it semantic
+				safePath = strings.TrimPrefix(safePath, "resource_")
+
+				// Handle Pluralization for 'list' operations
+				if prefix == "list" {
+					if !strings.HasSuffix(safePath, "s") {
+						// Simple pluralization for known entities
+						entities := map[string]string{
+							"bin":               "bins",
+							"department":        "departments",
+							"employee":          "employees",
+							"item":              "items",
+							"journal_entry":     "journal_entries",
+							"leave_application": "leave_applications",
+							"payment_entry":     "payment_entries",
+							"purchase_invoice":  "purchase_invoices",
+							"purchase_order":    "purchase_orders",
+							"salary_slip":       "salary_slips",
+						}
+						if p, ok := entities[safePath]; ok {
+							safePath = p
+						} else if strings.HasSuffix(safePath, "y") {
+							safePath = strings.TrimSuffix(safePath, "y") + "ies"
+						} else {
+							safePath = safePath + "s"
+						}
+					}
+				}
+
+				toolName = prefix + "_" + safePath
 			}
+
+			// Clean up toolName: replace {name} with empty or identifier
+			toolName = strings.ReplaceAll(toolName, "_{name}", "")
+			toolName = strings.ReplaceAll(toolName, "{name}", "")
+			toolName = strings.ReplaceAll(toolName, " ", "_")
+			toolName = strings.TrimSuffix(toolName, "_")
+			toolName = strings.ToLower(toolName)
 
 			baseURL := ""
 			if len(doc.Servers) > 0 {
@@ -121,28 +184,36 @@ func (g *Generator) GenerateFromOpenAPI(ctx context.Context, api API, openapiURL
 			}
 
 			tool := &mcp.Tool{
-				Name:        toolName,
-				Description: op.Summary,
-				Module:      api.Module,
-				InputSchema: mcp.InputSchema{
-					Type:       "object",
-					Properties: make(map[string]mcp.Property),
+				APIVersion: "erpbridge.io/v1",
+				Kind:       "MCPTool",
+				Metadata: mcp.Metadata{
+					Name:    toolName,
+					Version: "1.0.0",
+					Module:  api.Module,
 				},
-				Endpoint: &mcp.Endpoint{
-					Method: method,
-					Path:   baseURL + path,
-					Auth: mcp.AuthInfo{
-						Type:     api.AuthType,
-						Header:   api.AuthHeader,
-						KeyRef:   api.AuthKey,
-						Username: api.AuthUsername,
-						Token:    api.AuthToken,
+				Spec: mcp.ToolSpec{
+					Description: mcp.Description{
+						Short: op.Summary,
+					},
+					InputSchema: mcp.InputSchema{
+						Type:       "object",
+						Properties: make(map[string]mcp.Property),
+					},
+					Execution: mcp.Execution{
+						Type:         "http",
+						Method:       method,
+						Endpoint:     baseURL + path,
+						ResponsePath: "data",
+					},
+					Security: mcp.Security{
+						AuthType:      api.AuthType,
+						CredentialRef: "ERP_PRIMARY_KEY",
 					},
 				},
 			}
 
-			if tool.Description == "" {
-				tool.Description = op.Description
+			if tool.Spec.Description.Short == "" {
+				tool.Spec.Description.Short = op.Description
 			}
 
 			// Map parameters
@@ -159,9 +230,9 @@ func (g *Generator) GenerateFromOpenAPI(ctx context.Context, api API, openapiURL
 					p.Type = param.Schema.Value.Type.Slice()[0]
 				}
 				if param.Required {
-					tool.InputSchema.Required = append(tool.InputSchema.Required, param.Name)
+					tool.Spec.InputSchema.Required = append(tool.Spec.InputSchema.Required, param.Name)
 				}
-				tool.InputSchema.Properties[param.Name] = p
+				tool.Spec.InputSchema.Properties[param.Name] = p
 			}
 
 			// Map Request Body (for POST/PATCH)
@@ -178,9 +249,9 @@ func (g *Generator) GenerateFromOpenAPI(ctx context.Context, api API, openapiURL
 						if len(prop.Type.Slice()) > 0 {
 							p.Type = prop.Type.Slice()[0]
 						}
-						tool.InputSchema.Properties[propName] = p
+						tool.Spec.InputSchema.Properties[propName] = p
 					}
-					tool.InputSchema.Required = append(tool.InputSchema.Required, schema.Required...)
+					tool.Spec.InputSchema.Required = append(tool.Spec.InputSchema.Required, schema.Required...)
 				}
 			}
 
@@ -192,7 +263,7 @@ func (g *Generator) GenerateFromOpenAPI(ctx context.Context, api API, openapiURL
 			if resp200 != nil && resp200.Value != nil && resp200.Value.Content.Get("application/json") != nil {
 				schema := resp200.Value.Content.Get("application/json").Schema.Value
 				var outputSchema any = schema
-				tool.OutputSchema = &outputSchema
+				tool.Spec.OutputSchema = &outputSchema
 			}
 
 			if err := g.Save(tool); err != nil {
@@ -207,12 +278,12 @@ func (g *Generator) GenerateFromOpenAPI(ctx context.Context, api API, openapiURL
 }
 
 func (g *Generator) Save(tool *mcp.Tool) error {
-	dir := filepath.Join(g.SchemasDir, tool.Module)
+	dir := filepath.Join(g.SchemasDir, tool.Metadata.Module)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
-	path := filepath.Join(dir, tool.Name+".json")
+	path := filepath.Join(dir, tool.Metadata.Name+".json")
 	data, err := json.MarshalIndent(tool, "", "  ")
 	if err != nil {
 		return err
