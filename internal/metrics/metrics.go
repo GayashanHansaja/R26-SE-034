@@ -34,7 +34,7 @@ var (
 	CacheHitsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "cache_hits_total",
 		Help: "Total number of cache hits",
-	}, []string{"type"}) // exact, semantic
+	}, []string{"type"}) // exact
 
 	CacheMissesTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "cache_misses_total",

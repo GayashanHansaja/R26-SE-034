@@ -130,7 +130,7 @@ func MetricsMiddleware() server.ToolHandlerMiddleware {
 	}
 }
 
-// CacheMiddleware handles semantic and exact caching for tool results.
+// CacheMiddleware handles exact matching cache for tool results.
 func (s *Server) CacheMiddleware(t *Tool) server.ToolHandlerMiddleware {
 	return func(next server.ToolHandlerFunc) server.ToolHandlerFunc {
 		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

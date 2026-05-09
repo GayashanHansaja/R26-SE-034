@@ -14,7 +14,7 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 - **[CLI Reference (bridgectl)](./cli/bridgectl.md)**: Comprehensive guide to the developer CLI.
 - **[CLI API Management](./cli/bridgectl_api.md)**: How to register and test ERP endpoints.
 - **[CLI Tool Management](./cli/bridgectl_tool.md)**: Generating and validating MCP tool schemas.
-- **[CLI Cache Management](./cli/bridgectl_cache.md)**: Monitoring and flushing the semantic cache.
+- **[CLI Cache Management](./cli/bridgectl_cache.md)**: Monitoring and flushing the exact match cache.
 
 ## 🔌 Integration Guides
 
@@ -25,6 +25,7 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 ## 🛡 System Features
 
 - **Resilience**: Circuit breakers and retry logic (see [README](../README.md#3-resilience--reliability)).
-- **[Semantic Caching](./caching.md)**: Efficient vector-based search for ERP responses.
+- **[Exact Match Caching](./caching.md)**: High-speed Redis-based storage for ERP responses.
 - **Secure Logging**: Real-time log streaming with automatic PII/Secret redaction and RFC 5424 level control.
+- **Rate Limiting**: Per-session request throttling for infrastructure protection.
 - **Hot Reloading**: Instant schema updates without downtime (see [README](../README.md#8-development-flow)).

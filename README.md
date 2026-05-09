@@ -10,7 +10,8 @@
 ## 🚀 Key Features
 
 - **Model Context Protocol (MCP) Native**: Built from the ground up to support the latest MCP specifications.
-- **Semantic Caching**: AI-optimized caching layer using Redis and vector embeddings to minimize redundant ERP API hits and improve response latency.
+- **High-Performance Caching**: Optimized exact-match caching layer using Redis and canonical SHA-256 hashing to minimize redundant ERP API hits.
+- **Rate Limiting**: Built-in per-session rate limiting using the token bucket algorithm to protect legacy ERP infrastructure.
 - **Resilience & Fault Tolerance**: Hardened with circuit breakers (Sony/GoBreaker) and intelligent retry logic (Avast/Retry-Go) to handle the instability of legacy systems.
 - **Secure Log Streaming**: Real-time structured log streaming to MCP clients with automatic redaction of sensitive data (API keys, passwords, PII) using `masq` and RFC 5424 level control.
 - **Multi-Transport Support**: 
@@ -24,7 +25,8 @@
 ```mermaid
 graph TD
     A[AI Agent / IDE] -->|MCP| B(ERPBridge Server)
-    B -->|Semantic Cache| C[(Redis)]
+    B -->|Rate Limiter| B
+    B -->|Exact Cache| C[(Redis)]
     B -->|Tool Execution| D{ERP Connector}
     D --> E[Mock ERP / Legacy ERP]
     F[bridgectl CLI] -->|Management| B
@@ -42,7 +44,7 @@ graph TD
 - **Go**: 1.26.2+
 - **Python**: 3.11+ (managed via `uv` is recommended)
 - **Docker & Docker Compose**: For containerized deployment.
-- **Redis**: Required for semantic caching (requires the RediSearch module).
+- **Redis**: Required for the caching layer.
 
 ### Quick Start (Docker)
 
@@ -55,7 +57,8 @@ docker compose up -d --build
 This will launch:
 - **ERPBridge Server**: `http://localhost:8080`
 - **Mock ERP**: `http://localhost:8000`
-- **Redis**: Port `6379` (with RediSearch)
+- **Redis**: Port `6379`
+
 
 ### Local Development
 

@@ -40,12 +40,12 @@ func NewManager(rdb *redis.Client, rootLog *slog.Logger) *Manager {
 	}
 }
 
-// EnsureIndex is temporarily disabled.
+// EnsureIndex is a no-op since semantic caching is removed.
 func (m *Manager) EnsureIndex(ctx context.Context) error {
 	return nil
 }
 
-// Get tries exact match. Semantic fallback is temporarily disabled.
+// Get tries exact match.
 func (m *Manager) Get(ctx context.Context, tool, role string, args map[string]any, cfg Config) (*Entry, error) {
 	if !cfg.Enabled {
 		return &Entry{HitType: "miss"}, nil
@@ -66,7 +66,7 @@ func (m *Manager) Get(ctx context.Context, tool, role string, args map[string]an
 	return &Entry{HitType: "miss"}, nil
 }
 
-// Set stores a response in the exact cache. Semantic cache is temporarily disabled.
+// Set stores a response in the exact cache.
 func (m *Manager) Set(ctx context.Context, tool, role string, args map[string]any, response json.RawMessage, cfg Config) error {
 	if !cfg.Enabled {
 		return nil

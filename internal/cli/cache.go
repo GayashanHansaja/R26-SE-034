@@ -13,17 +13,17 @@ import (
 
 var cacheCmd = &cobra.Command{
 	Use:   "cache",
-	Short: "Manage semantic cache",
+	Short: "Manage tool cache",
 	Long: `The cache command provides tools to monitor and manage the middleware's 
-two-layer (Exact + Semantic) caching system. You can view real-time statistics 
+Redis-based caching system. You can view real-time statistics 
 and manually flush entries by tool, module, or for the entire system.`,
 }
 
 var cacheStatsCmd = &cobra.Command{
 	Use:   "stats",
-	Short: "Show cache hit/miss rates and memory usage",
-	Long: `Display high-level statistics for the semantic cache, 
-including total key counts, memory usage in Redis, and hit/miss trends.`,
+	Short: "Show cache key counts and memory usage",
+	Long: `Display high-level statistics for the tool cache, 
+including total key counts and memory usage in Redis.`,
 	Example: `  bridgectl cache stats`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, ok := cfg.Contexts[cfg.CurrentContext]

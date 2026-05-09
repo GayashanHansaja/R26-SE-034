@@ -24,7 +24,7 @@ and supports multiple output formats including Table, JSON, and YAML.
 ### SEE ALSO
 
 * [bridgectl api](bridgectl_api.md)	 - Manage ERP API endpoints
-* [bridgectl cache](bridgectl_cache.md)	 - Manage semantic cache
+* [bridgectl cache](bridgectl_cache.md)	 - Manage tool cache
 * [bridgectl completion](bridgectl_completion.md)	 - Generate the autocompletion script for the specified shell
 * [bridgectl context](bridgectl_context.md)	 - Manage bridgectl contexts
 * [bridgectl doc](bridgectl_doc.md)	 - Generate Markdown documentation for bridgectl

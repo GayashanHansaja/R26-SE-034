@@ -29,12 +29,18 @@ The server exposes direct HTTP endpoints for internal management, performance mo
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
 | `/api/tools/invoke` | `POST` | Directly invoke an MCP tool. |
-| `/api/cache/stats` | `GET` | Retrieve semantic cache performance metrics. |
+| `/api/cache/stats` | `GET` | Retrieve tool cache performance metrics. |
 | `/api/cache/flush` | `POST` | Flush specific or all cache entries. |
 | `/api/logs/stream` | `GET` | Real-time structured log stream (SSE). |
 | `/api/logs/recent` | `GET` | Fetch recent log history in JSON format. |
 
-## 4. Monitoring & Health
+## 4. Protection & Limits
+ERPBridge includes built-in protection for underlying ERP systems.
+
+- **Rate Limiting:** Request throttling is enforced per-session (token bucket).
+- **Default Limits:** 5 requests per second with a burst of 10 (configurable via environment variables).
+
+## 5. Monitoring & Health
 Standard endpoints for system health and observability.
 
 - **Health Check:** `GET /mcp/health` (Returns `{"status": "ok"}`)
