@@ -141,6 +141,17 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 		}
 	}
 
+	fullURL := t.Spec.Execution.Endpoint
+
+	// Path parameter substitution
+	for k, v := range erpArgs {
+		placeholder := "{" + k + "}"
+		if strings.Contains(fullURL, placeholder) {
+			fullURL = strings.ReplaceAll(fullURL, placeholder, fmt.Sprintf("%v", v))
+			delete(erpArgs, k) // Remove from args so it's not sent as query/body param
+		}
+	}
+
 	queryParams := url.Values{}
 	var body io.Reader
 
@@ -149,14 +160,15 @@ func (t *Tool) Execute(ctx context.Context, args map[string]any, conn ERPConnect
 			queryParams.Set(k, fmt.Sprintf("%v", v))
 		}
 	} else {
-		data, err := json.Marshal(erpArgs)
-		if err != nil {
-			return nil, fmt.Errorf("marshal arguments: %w", err)
+		if len(erpArgs) > 0 {
+			data, err := json.Marshal(erpArgs)
+			if err != nil {
+				return nil, fmt.Errorf("marshal arguments: %w", err)
+			}
+			body = strings.NewReader(string(data))
 		}
-		body = strings.NewReader(string(data))
 	}
 
-	fullURL := t.Spec.Execution.Endpoint
 	envBaseURL := os.Getenv("ERP_BASE_URL")
 
 	if envBaseURL != "" {
