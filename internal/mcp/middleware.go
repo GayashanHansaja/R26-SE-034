@@ -134,7 +134,7 @@ func MetricsMiddleware() server.ToolHandlerMiddleware {
 func (s *Server) CacheMiddleware(t *Tool) server.ToolHandlerMiddleware {
 	return func(next server.ToolHandlerFunc) server.ToolHandlerFunc {
 		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			if s.cache == nil || t.Cache == nil || !t.Cache.Enabled {
+			if s.cache == nil || t.Spec.Cache == nil || !t.Spec.Cache.Enabled {
 				return next(ctx, req)
 			}
 
@@ -142,10 +142,10 @@ func (s *Server) CacheMiddleware(t *Tool) server.ToolHandlerMiddleware {
 			role := "" // Extract from context if needed in future
 
 			// READ from cache
-			entry, err := s.cache.Get(ctx, t.Name, role, args, *t.Cache)
+			entry, err := s.cache.Get(ctx, t.Metadata.Name, role, args, *t.Spec.Cache)
 			if err == nil && entry != nil && entry.HitType != "miss" {
 				metrics.CacheHitsTotal.WithLabelValues(entry.HitType).Inc()
-				s.log.Debug("cache hit", slog.String("tool", t.Name), slog.String("type", entry.HitType))
+				s.log.Debug("cache hit", slog.String("tool", t.Metadata.Name), slog.String("type", entry.HitType))
 				return mcp.NewToolResultText(string(entry.Response)), nil
 			}
 
@@ -159,13 +159,13 @@ func (s *Server) CacheMiddleware(t *Tool) server.ToolHandlerMiddleware {
 
 			// WRITE to cache
 			respJSON, _ := json.Marshal(result.Content)
-			if err := s.cache.Set(ctx, t.Name, role, args, respJSON, *t.Cache); err != nil {
+			if err := s.cache.Set(ctx, t.Metadata.Name, role, args, respJSON, *t.Spec.Cache); err != nil {
 				s.log.Warn("failed to cache result", slog.String("error", err.Error()))
 			}
 
 			// Invalidation (Auto-Flush)
-			if len(t.Cache.FlushOn) > 0 {
-				if err := s.cache.AutoFlush(ctx, t.Cache.FlushOn); err != nil {
+			if len(t.Spec.Cache.FlushOn) > 0 {
+				if err := s.cache.AutoFlush(ctx, t.Spec.Cache.FlushOn); err != nil {
 					s.log.Warn("auto-flush failed", slog.String("error", err.Error()))
 				}
 			}

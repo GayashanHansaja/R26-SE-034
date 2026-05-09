@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,7 +26,8 @@ type Server struct {
 	cache           *cache.Manager
 	log             *slog.Logger
 	mu              sync.RWMutex
-	tools           map[string]*Tool
+	store           *Store
+	registry        *ToolRegistry
 	resources       map[string]*Resource
 	prompts         map[string]*Prompt
 	Notifier        *CustomNotifier
@@ -39,7 +41,7 @@ type RateLimitConfig struct {
 }
 
 // NewServer creates a new Server instance with the provided connector, cache manager, and logger.
-func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Logger, rateCfg RateLimitConfig) *Server {
+func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Logger, rateCfg RateLimitConfig, dbPath string) *Server {
 	s := server.NewMCPServer("ERPBridge", "1.0.0",
 		server.WithLogging(),
 		server.WithResourceCompletionProvider(&ResourceCompletionProvider{}),
@@ -52,12 +54,18 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 		mcpHandler,
 	})
 
+	store, err := NewStore(dbPath)
+	if err != nil {
+		mcpLog.Error("failed to initialize store", slog.String("error", err.Error()))
+	}
+
 	srv := &Server{
 		mcpServer: s,
 		connector: connector,
 		cache:     cacheMgr,
 		log:       mcpLog,
-		tools:     make(map[string]*Tool),
+		store:     store,
+		registry:  NewToolRegistry(),
 		resources: make(map[string]*Resource),
 		prompts:   make(map[string]*Prompt),
 		Notifier:  NewCustomNotifier(s),
@@ -73,21 +81,34 @@ func NewServer(connector ERPConnector, cacheMgr *cache.Manager, rootLog *slog.Lo
 
 	srv.RegisterBuiltinTools()
 
+	// Start Reconciliation Loop
+	go srv.StartController(context.Background())
+
 	return srv
 }
 
 // RegisterBuiltinTools registers internal system tools.
 func (s *Server) RegisterBuiltinTools() {
 	s.RegisterTool(&Tool{
-		Name:        "system.progress_test",
-		Description: "A demonstration tool that sends real-time progress notifications.",
-		InputSchema: InputSchema{
-			Type: "object",
-			Properties: map[string]Property{
-				"steps": {
-					Type:        "integer",
-					Description: "Number of steps to simulate (max 100).",
-					Default:     10,
+		APIVersion: "erpbridge.io/v1",
+		Kind:       "MCPTool",
+		Metadata: Metadata{
+			Name:    "system.progress_test",
+			Version: "1.0.0",
+			Module:  "system",
+		},
+		Spec: ToolSpec{
+			Description: Description{
+				Short: "A demonstration tool that sends real-time progress notifications.",
+			},
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"steps": {
+						Type:        "integer",
+						Description: "Number of steps to simulate (max 100).",
+						Default:     10,
+					},
 				},
 			},
 		},
@@ -119,18 +140,28 @@ func (s *Server) RegisterBuiltinTools() {
 	})
 
 	s.RegisterTool(&Tool{
-		Name:        "system.sensitive_log_test",
-		Description: "A demonstration tool that logs sensitive data to verify redaction.",
-		InputSchema: InputSchema{
-			Type: "object",
-			Properties: map[string]Property{
-				"token": {
-					Type:        "string",
-					Description: "A sensitive token that should be redacted.",
-				},
-				"message": {
-					Type:        "string",
-					Description: "A normal message.",
+		APIVersion: "erpbridge.io/v1",
+		Kind:       "MCPTool",
+		Metadata: Metadata{
+			Name:    "system.sensitive_log_test",
+			Version: "1.0.0",
+			Module:  "system",
+		},
+		Spec: ToolSpec{
+			Description: Description{
+				Short: "A demonstration tool that logs sensitive data to verify redaction.",
+			},
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"token": {
+						Type:        "string",
+						Description: "A sensitive token that should be redacted.",
+					},
+					"message": {
+						Type:        "string",
+						Description: "A normal message.",
+					},
 				},
 			},
 		},
@@ -264,28 +295,73 @@ func (s *Server) handleMCPPromptGet(ctx context.Context, request mcp.GetPromptRe
 	}, nil
 }
 
-// RegisterTool adds a tool to the server's registry at runtime.
-func (s *Server) RegisterTool(t *Tool) {
-	s.mu.Lock()
-	s.tools[t.Name] = t
-	s.mu.Unlock()
+// StartController runs the background reconciliation loop.
+func (s *Server) StartController(ctx context.Context) {
+	s.log.Info("starting reconciliation controller")
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 
-	// Serialize the input schema to JSON.RawMessage
-	schemaJSON, err := json.Marshal(t.InputSchema)
-	if err != nil {
-		s.log.Error("failed to marshal input schema", slog.String("tool_name", t.Name), slog.String("error", err.Error()))
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.Reconcile(ctx)
+		}
+	}
+}
+
+// Reconcile ensures the MCP runtime matches the desired state in the SQLite store.
+func (s *Server) Reconcile(ctx context.Context) {
+	if s.store == nil {
 		return
 	}
 
-	// Create mcp-go tool using RawInputSchema directly to avoid conflict with NewTool's default InputSchema
-	mcpTool := mcp.NewToolWithRawSchema(t.Name, t.Description, json.RawMessage(schemaJSON))
+	desiredTools, err := s.store.List()
+	if err != nil {
+		s.log.Error("failed to list desired tools", slog.String("error", err.Error()))
+		return
+	}
+
+	// Simple reconciliation: Register any tool that is in the store but not in registry,
+	// or has a different version/spec.
+	for _, dt := range desiredTools {
+		existing, err := s.registry.Resolve(dt.Metadata.Name, dt.Metadata.Version)
+		if err != nil || existing == nil {
+			s.log.Info("reconciling tool", slog.String("name", dt.Metadata.Name), slog.String("version", dt.Metadata.Version))
+			s.RegisterTool(dt)
+		}
+	}
+}
+
+// RegisterTool adds a tool to the server's registry and active MCP server.
+func (s *Server) RegisterTool(t *Tool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.registry.Add(t); err != nil {
+		s.log.Error("failed to add tool to registry", slog.String("tool", t.Metadata.Name), slog.String("error", err.Error()))
+		return
+	}
+
+	// Serialize the input schema to JSON.RawMessage
+	schemaJSON, err := json.Marshal(t.Spec.InputSchema)
+	if err != nil {
+		s.log.Error("failed to marshal input schema", slog.String("tool_name", t.Metadata.Name), slog.String("error", err.Error()))
+		return
+	}
+
+	// Use versioned name internally for MCP registration if it's not the default?
+	// Actually, the spec says we should use stable aliases.
+	// For now, we register with the base name and let the handler resolve.
+	mcpTool := mcp.NewToolWithRawSchema(t.Metadata.Name, t.Spec.Description.Short, json.RawMessage(schemaJSON))
 
 	// Explicitly clear structured schema fields to avoid conflict during marshaling
 	mcpTool.InputSchema = mcp.ToolInputSchema{}
 	mcpTool.OutputSchema = mcp.ToolOutputSchema{}
 
 	// Add tool to server with handler
-	handler := s.handleMCPToolCall(t.Name)
+	handler := s.handleMCPToolCall(t.Metadata.Name)
 
 	// Apply tool-specific middlewares
 	handler = s.CacheMiddleware(t)(handler)
@@ -296,7 +372,7 @@ func (s *Server) RegisterTool(t *Tool) {
 	}
 
 	s.mcpServer.AddTool(mcpTool, handler)
-	s.log.Info("registered MCP tool", slog.String("tool_name", t.Name))
+	s.log.Info("registered MCP tool", slog.String("tool_name", t.Metadata.Name), slog.String("version", t.Metadata.Version))
 
 	// Notify clients that tools have changed
 	s.mcpServer.SendNotificationToAllClients("notifications/tools/list_changed", nil)
@@ -305,11 +381,12 @@ func (s *Server) RegisterTool(t *Tool) {
 func (s *Server) handleMCPToolCall(name string) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		s.mu.RLock()
-		t, ok := s.tools[name]
+		// Resolve the latest stable version for this tool name
+		t, err := s.registry.Resolve(name, "")
 		s.mu.RUnlock()
 
-		if !ok {
-			return nil, fmt.Errorf("tool not found: %s", name)
+		if err != nil {
+			return nil, fmt.Errorf("tool not found: %s (%w)", name, err)
 		}
 
 		// Type assertion for arguments
@@ -364,6 +441,106 @@ func (s *Server) ServeHTTP(mux *http.ServeMux, baseURL string) {
 	mux.HandleFunc("/api/cache/inspect", s.handleCacheInspect)
 	mux.HandleFunc("/api/logs/stream", s.handleLogStream)
 	mux.HandleFunc("/api/logs/recent", s.handleLogRecent)
+
+	// 4. Kubernetes-Style Tool API
+	mux.HandleFunc("/apis/erpbridge.io/v1/tools", s.handleToolAPI)
+}
+
+func (s *Server) handleToolAPI(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		s.handleToolApply(w, r)
+	case http.MethodGet:
+		s.handleToolList(w, r)
+	case http.MethodDelete:
+		s.handleToolDelete(w, r)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleToolApply(w http.ResponseWriter, r *http.Request) {
+	var t Tool
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Admission Controller
+	if err := s.validateTool(&t); err != nil {
+		http.Error(w, "invalid tool: "+err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	if s.store == nil {
+		http.Error(w, "store not available", http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.store.Save(&t); err != nil {
+		http.Error(w, "failed to save tool: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Immediate reconciliation for responsiveness
+	s.RegisterTool(&t)
+
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":  "applied",
+		"name":    t.Metadata.Name,
+		"version": t.Metadata.Version,
+	})
+}
+
+func (s *Server) handleToolList(w http.ResponseWriter, r *http.Request) {
+	tools, err := s.store.List()
+	if err != nil {
+		http.Error(w, "failed to list tools: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(tools)
+}
+
+func (s *Server) handleToolDelete(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	version := r.URL.Query().Get("version")
+
+	if name == "" || version == "" {
+		http.Error(w, "missing name or version parameter", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.store.Delete(name, version); err != nil {
+		http.Error(w, "failed to delete tool: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Admission Controller
+func (s *Server) validateTool(t *Tool) error {
+	if t.Metadata.Name == "" {
+		return fmt.Errorf("metadata.name is required")
+	}
+	if t.Metadata.Version == "" {
+		return fmt.Errorf("metadata.version is required")
+	}
+	if strings.Contains(strings.ToLower(t.Metadata.Name), "get-") ||
+		strings.Contains(strings.ToLower(t.Metadata.Name), "post-") {
+		return fmt.Errorf("tool name should be intent-based, not include HTTP verbs")
+	}
+
+	// Check for embedded secrets in Execution path (simplified check)
+	if strings.Contains(t.Spec.Execution.Endpoint, "token ") ||
+		strings.Contains(t.Spec.Execution.Endpoint, "key=") {
+		return fmt.Errorf("endpoint should not contain raw secrets, use credentialRef instead")
+	}
+
+	return nil
 }
 
 func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
@@ -380,10 +557,11 @@ func (s *Server) handleDirectInvoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.RLock()
-	t, ok := s.tools[req.Name]
+	// Resolve tool by name (latest stable)
+	t, err := s.registry.Resolve(req.Name, "")
 	s.mu.RUnlock()
 
-	if !ok {
+	if err != nil {
 		http.Error(w, "tool not found", http.StatusNotFound)
 		return
 	}
