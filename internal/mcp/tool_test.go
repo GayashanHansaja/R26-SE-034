@@ -16,23 +16,30 @@ import (
 func TestServer_RegisterTool(t *testing.T) {
 	log := logger.Init()
 	mockConn := &MockConnector{}
-	s := NewServer(mockConn, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(mockConn, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 
 	tool := &Tool{
-		Name:        "test-tool",
-		Description: "A test tool",
-		InputSchema: InputSchema{
-			Type: "object",
-			Properties: map[string]Property{
-				"param1": {Type: "string"},
+		Metadata: Metadata{
+			Name:    "test-tool",
+			Version: "1.0.0",
+		},
+		Spec: ToolSpec{
+			Description: Description{Short: "A test tool"},
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"param1": {Type: "string"},
+				},
 			},
 		},
 	}
 
 	s.RegisterTool(tool)
 
-	assert.NotNil(t, s.tools["test-tool"])
-	assert.Equal(t, "test-tool", s.tools["test-tool"].Name)
+	registered, err := s.registry.Resolve("test-tool", "")
+	assert.NoError(t, err)
+	assert.NotNil(t, registered)
+	assert.Equal(t, "test-tool", registered.Metadata.Name)
 }
 
 func TestTool_Execute(t *testing.T) {
@@ -47,10 +54,12 @@ func TestTool_Execute(t *testing.T) {
 	}
 
 	tool := &Tool{
-		Name: "test-tool",
-		Endpoint: &Endpoint{
-			Method: "GET",
-			Path:   "/test",
+		Metadata: Metadata{Name: "test-tool"},
+		Spec: ToolSpec{
+			Execution: Execution{
+				Method:   "GET",
+				Endpoint: "/test",
+			},
 		},
 	}
 
@@ -77,10 +86,12 @@ func TestTool_Execute_Error(t *testing.T) {
 	}
 
 	tool := &Tool{
-		Name: "test-tool",
-		Endpoint: &Endpoint{
-			Method: "POST",
-			Path:   "/test",
+		Metadata: Metadata{Name: "test-tool"},
+		Spec: ToolSpec{
+			Execution: Execution{
+				Method:   "POST",
+				Endpoint: "/test",
+			},
 		},
 	}
 

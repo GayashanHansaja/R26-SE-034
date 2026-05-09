@@ -4,7 +4,8 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 
 ## 📖 Core Documentation
 
-- **[Overview & Architecture](../README.md)**: High-level introduction to ERPBridge and its core components.
+- **[Architecture Overview](./architecture.md)**: Understanding the Declarative Control Plane, SQLite registry, and reconciliation loop.
+- **[Tool Schema Reference (V2)](./tool-schema.md)**: Detailed guide to creating versioned, intent-based MCP tool definitions.
 - **[Docker Deployment Guide](./docker.md)**: Detailed instructions for running the full stack using Docker Compose.
 - **[Connectivity & Transport Guide](./connectivity.md)**: Understanding SSE, Streamable HTTP, and Direct API transports.
 - **[AI Agent Integration](../AGENTS.md)**: Specific patterns for connecting Claude, Cursor, and other agents.
@@ -13,7 +14,7 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 
 - **[CLI Reference (bridgectl)](./cli/bridgectl.md)**: Comprehensive guide to the developer CLI.
 - **[CLI API Management](./cli/bridgectl_api.md)**: How to register and test ERP endpoints.
-- **[CLI Tool Management](./cli/bridgectl_tool.md)**: Generating and validating MCP tool schemas.
+- **[CLI Tool Management](./cli/bridgectl_tool.md)**: Managing the live tool registry using `apply`, `get`, and `validate`.
 - **[CLI Cache Management](./cli/bridgectl_cache.md)**: Monitoring and flushing the exact match cache.
 
 ## 🔌 Integration Guides
@@ -28,4 +29,4 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 - **[Exact Match Caching](./caching.md)**: High-speed Redis-based storage for ERP responses.
 - **Secure Logging**: Real-time log streaming with automatic PII/Secret redaction and RFC 5424 level control.
 - **Rate Limiting**: Per-session request throttling for infrastructure protection.
-- **Hot Reloading**: Instant schema updates without downtime (see [README](../README.md#8-development-flow)).
+- **Declarative Management**: Versioned tool registry with background reconciliation (no restarts needed).

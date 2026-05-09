@@ -1,17 +1,23 @@
-## bridgectl tool generate
+## bridgectl tool apply
 
-Auto-generate an MCP tool schema from a registered API or OpenAPI spec
+Apply a tool schema to the registry (declarative)
 
 ```
-bridgectl tool generate [flags]
+bridgectl tool apply -f [file] [flags]
+```
+
+### Examples
+
+```
+  bridgectl tool apply -f list_employees.yaml
+  bridgectl tool apply -f schemas/hr/
 ```
 
 ### Options
 
 ```
-      --api string       Name of the registered API to generate from
-  -h, --help             help for generate
-      --openapi string   URL or path to an OpenAPI spec
+  -f, --file string   Path to the tool schema file
+  -h, --help          help for apply
 ```
 
 ### Options inherited from parent commands

@@ -1,23 +1,29 @@
-## bridgectl tool validate
+## bridgectl tool get
 
-Locally validate a tool schema
+Display one or many tool resources
 
 ```
-bridgectl tool validate -f [file] [flags]
+bridgectl tool get [name] [flags]
+```
+
+### Examples
+
+```
+  bridgectl tool get
+  bridgectl tool get list_employees -o yaml
 ```
 
 ### Options
 
 ```
-  -f, --file string   Path to the tool schema file
-  -h, --help          help for validate
+  -h, --help            help for get
+  -o, --output string   Output format (table|yaml|json) (default "table")
 ```
 
 ### Options inherited from parent commands
 
 ```
   -c, --context string   Override active context
-  -o, --output string    Output format: table, json, yaml (default "table")
   -v, --verbose          Show full HTTP request/response detail
 ```
 

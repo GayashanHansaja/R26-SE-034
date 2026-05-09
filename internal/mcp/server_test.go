@@ -20,7 +20,7 @@ import (
 
 func TestServer_RegisterResource(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 
 	r := &Resource{
 		Name:        "test-resource",
@@ -46,13 +46,13 @@ func TestServer_HandleResourceRead(t *testing.T) {
 			}, nil
 		},
 	}
-	s := NewServer(mockConn, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(mockConn, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 
 	r := &Resource{
 		Name:        "test-resource",
 		URITemplate: "erp://test",
 		MimeType:    "text/plain",
-		Endpoint:    &Endpoint{Path: "/test"},
+		Execution:   Execution{Endpoint: "/test"},
 	}
 	s.RegisterResource(r)
 
@@ -74,7 +74,7 @@ func TestServer_HandleResourceRead(t *testing.T) {
 
 func TestServer_RegisterPrompt(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 
 	p := &Prompt{
 		Name:        "test-prompt",
@@ -93,7 +93,7 @@ func TestServer_RegisterPrompt(t *testing.T) {
 
 func TestServer_HandlePromptGet(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 
 	p := &Prompt{
 		Name:     "test-prompt",
@@ -134,7 +134,7 @@ func TestServer_Completions(t *testing.T) {
 
 func TestServer_RegisterToolMarshaling(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 
 	schema := InputSchema{
 		Type: "object",
@@ -144,13 +144,20 @@ func TestServer_RegisterToolMarshaling(t *testing.T) {
 	}
 
 	s.RegisterTool(&Tool{
-		Name:        "test-tool",
-		Description: "Test",
-		InputSchema: schema,
+		Metadata: Metadata{
+			Name:    "test-tool",
+			Version: "1.0.0",
+		},
+		Spec: ToolSpec{
+			Description: Description{Short: "Test"},
+			InputSchema: schema,
+		},
 	})
 
-	// Access the registered tool from the internal mcpServer and try to marshal it
-	assert.NotNil(t, s.tools["test-tool"])
+	// Access the registered tool from the registry
+	tool, err := s.registry.Resolve("test-tool", "")
+	assert.NoError(t, err)
+	assert.NotNil(t, tool)
 
 	// Try to marshal the tools list as the server would during a tools/list request
 	schemaJSON, _ := json.Marshal(schema)
@@ -167,7 +174,7 @@ func TestServer_RegisterToolMarshaling(t *testing.T) {
 
 func TestServer_ServeHTTP(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 	mux := http.NewServeMux()
 	s.ServeHTTP(mux, "http://localhost:8080")
 
@@ -181,7 +188,7 @@ func TestServer_ServeHTTP(t *testing.T) {
 
 func TestServer_LogStream(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 
 	req := httptest.NewRequest("GET", "/api/logs/stream", nil)
 
@@ -206,7 +213,7 @@ func TestServer_LogStream(t *testing.T) {
 
 func TestServer_HttpEndpoints(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 	assert.NotNil(t, s.MCPServer())
 
 	// Test cache flush (not enabled)
@@ -252,10 +259,13 @@ func TestServer_HttpEndpoints(t *testing.T) {
 
 func TestServer_DirectInvoke(t *testing.T) {
 	log := logger.Init()
-	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100})
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, ":memory:")
 
 	s.RegisterTool(&Tool{
-		Name: "test-invoke",
+		Metadata: Metadata{
+			Name:    "test-invoke",
+			Version: "1.0.0",
+		},
 		Handler: func(ctx context.Context, args map[string]any) (*ToolResult, error) {
 			return &ToolResult{Result: map[string]any{"ok": true}}, nil
 		},

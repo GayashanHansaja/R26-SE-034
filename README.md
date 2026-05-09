@@ -29,12 +29,13 @@ graph TD
     B -->|Exact Cache| C[(Redis)]
     B -->|Tool Execution| D{ERP Connector}
     D --> E[Mock ERP / Legacy ERP]
-    F[bridgectl CLI] -->|Management| B
+    F[bridgectl CLI] -->|apply/get/delete| G[(SQLite Registry)]
+    G -->|Reconciliation| B
 ```
 
-- **`services/erpbridge-server/`**: The core Go service acting as the MCP gateway.
+- **`services/erpbridge-server/`**: The core Go service acting as the MCP gateway and Declarative Control Plane.
 - **`mock-erp/`**: A Python FastAPI service simulating legacy ERP modules (Finance, HR, Inventory) for development and testing.
-- **`tools/bridgectl/`**: Management CLI for developers and AI agents.
+- **`tools/bridgectl/`**: Management CLI for developers and AI agents (Kubernetes-style tool management).
 - **`internal/`**: Optimized Go libraries for configuration, protocol handling, caching, and resilience.
 
 ## 🛠️ Getting Started
@@ -45,6 +46,7 @@ graph TD
 - **Python**: 3.11+ (managed via `uv` is recommended)
 - **Docker & Docker Compose**: For containerized deployment.
 - **Redis**: Required for the caching layer.
+- **SQLite**: (Built-in) used for the Tool Registry.
 
 ### Quick Start (Docker)
 
@@ -56,9 +58,13 @@ docker compose up -d --build
 
 This will launch:
 - **ERPBridge Server**: `http://localhost:8080`
-- **Mock ERP**: `http://localhost:8000`
+- **Mock ERP**: `http://localhost:8081`
 - **Redis**: Port `6379`
 
+Once running, apply the default schemas:
+```bash
+bridgectl tool apply -f schemas/erp/
+```
 
 ### Local Development
 
@@ -70,6 +76,7 @@ This will launch:
 
 2. **Run ERPBridge Server**:
    ```bash
+   # Server will create data/erpbridge.db automatically
    go run services/erpbridge-server/main.go
    ```
 
@@ -77,6 +84,12 @@ This will launch:
    ```bash
    go install ./tools/bridgectl
    ```
+
+4. **Initialize Tools**:
+   ```bash
+   bridgectl tool apply -f schemas/erp/
+   ```
+
 
 ## 🔌 AI Integration
 

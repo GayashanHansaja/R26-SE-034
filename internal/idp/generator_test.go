@@ -53,11 +53,11 @@ paths:
 	tools, err := gen.GenerateFromOpenAPI(context.Background(), api, specPath)
 	assert.NoError(t, err)
 	assert.Len(t, tools, 1)
-	assert.Equal(t, "finance.getTest", tools[0].Name)
-	assert.Equal(t, "Get test data", tools[0].Description)
+	assert.Equal(t, "gettest", tools[0].Metadata.Name)
+	assert.Equal(t, "Get test data", tools[0].Spec.Description.Short)
 
 	// Verify file was saved
-	toolPath := filepath.Join(tempDir, "finance", "finance.getTest.json")
+	toolPath := filepath.Join(tempDir, "finance", "gettest.json")
 	_, err = os.Stat(toolPath)
 	assert.NoError(t, err)
 }
@@ -80,8 +80,8 @@ func TestGenerator_Generate(t *testing.T) {
 
 	tool, err := gen.Generate(api)
 	assert.NoError(t, err)
-	assert.Equal(t, "simple-test", tool.Name)
-	assert.Equal(t, "A simple test", tool.Description)
+	assert.Equal(t, "simple-test", tool.Metadata.Name)
+	assert.Equal(t, "A simple test", tool.Spec.Description.Short)
 
 	toolPath := filepath.Join(tempDir, "hr", "simple-test.json")
 	_, err = os.Stat(toolPath)

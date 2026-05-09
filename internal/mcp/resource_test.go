@@ -28,9 +28,9 @@ func TestResource_Execute(t *testing.T) {
 		Description: "Stock levels",
 		URITemplate: "erp://inventory/stock",
 		MimeType:    "application/json",
-		Endpoint: &Endpoint{
-			Method: "GET",
-			Path:   "/inventory/stock",
+		Execution: Execution{
+			Method:   "GET",
+			Endpoint: "/inventory/stock",
 		},
 	}
 

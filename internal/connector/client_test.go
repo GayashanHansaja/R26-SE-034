@@ -10,8 +10,8 @@ import (
 
 func TestClient_Call_APIKey(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-API-Key") != "test-key" {
-			t.Errorf("expected X-API-Key header, got %s", r.Header.Get("X-API-Key"))
+		if r.Header.Get("Authorization") != "test-key" {
+			t.Errorf("expected Authorization header, got %s", r.Header.Get("Authorization"))
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -23,9 +23,8 @@ func TestClient_Call_APIKey(t *testing.T) {
 		Path:    "/test",
 		BaseURL: ts.URL,
 		Auth: AuthConfig{
-			Type:   "api-key",
-			Header: "X-API-Key",
-			Key:    "test-key",
+			Type: "api-key",
+			Key:  "test-key",
 		},
 	}
 

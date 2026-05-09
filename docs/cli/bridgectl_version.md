@@ -1,27 +1,19 @@
-## bridgectl doc
+## bridgectl version
 
-Generate Markdown documentation for bridgectl
+Print the version number of bridgectl
 
 ### Synopsis
 
-Generate a comprehensive set of Markdown files documenting all 
-available commands, flags, and usage examples for bridgectl. 
-The files are saved to the docs/cli directory by default.
+All software has versions. This is bridgectl's.
 
 ```
-bridgectl doc [flags]
-```
-
-### Examples
-
-```
-  bridgectl doc
+bridgectl version [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for doc
+  -h, --help   help for version
 ```
 
 ### Options inherited from parent commands

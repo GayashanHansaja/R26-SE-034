@@ -1,17 +1,15 @@
-## bridgectl tool generate
+## bridgectl tool delete
 
-Auto-generate an MCP tool schema from a registered API or OpenAPI spec
+Remove a tool from the registry
 
 ```
-bridgectl tool generate [flags]
+bridgectl tool delete [name] [version] [flags]
 ```
 
 ### Options
 
 ```
-      --api string       Name of the registered API to generate from
-  -h, --help             help for generate
-      --openapi string   URL or path to an OpenAPI spec
+  -h, --help   help for delete
 ```
 
 ### Options inherited from parent commands
