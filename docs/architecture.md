@@ -12,6 +12,26 @@ The system is divided into three distinct layers:
 
 ---
 
+## 🧩 Endpoint vs. Tool: Key Concepts
+
+One of the most important concepts in ERPBridge V2 is the distinction between registering an **API Endpoint** and applying an **MCP Tool**.
+
+| Feature | **API Endpoint** (`api register`) | **MCP Tool** (`tool apply`) |
+| :--- | :--- | :--- |
+| **Mental Model** | Technical Discovery | Declarative Management |
+| **Primary Focus** | The ERP System (technical) | The AI Agent (semantic) |
+| **Storage** | Local CLI Config (`config.yaml`) | Server Registry (`erpbridge.db`) |
+| **Visibility** | **Hidden from AI** | **Visible to AI** (as an MCP Tool) |
+| **Stability** | Experimental / Internal | Versioned / Stable |
+| **Command** | `bridgectl api register ...` | `bridgectl tool apply -f ...` |
+
+### Why separate them?
+- **Technical vs. Semantic**: A single ERP API endpoint (e.g., `/api/v1/resource/Employee`) might be used by multiple MCP tools with different filters or versions.
+- **Safety**: Registering an API is a developer-only technical step. Applying a tool is a conscious decision to expose functionality to an AI agent.
+- **Lifecycle**: You can "discover" and test 100 API endpoints locally, but only "apply" the 5 that are safe and ready for the LLM to use.
+
+---
+
 ## 🛠 Core Components
 
 ### 1. Tool Resource Registry (The Source of Truth)
