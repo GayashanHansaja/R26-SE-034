@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(mcp): implement deletion reconciliation (automatic tool deregistration)
 - feat(mcp): add tool icons and output schema validation
 - feat(metrics): add server lifecycle and session Prometheus metrics
+- feat: add ASCII startup banners for server and CLI
+- test: achieve high coverage (>70%) across core packages (MCP, IDP, Cache, CLI, Output)
 - ci: modernize GoReleaser config with multi-platform builds, SBOM (Syft), and Signing (Cosign)
 
 ### Changed
@@ -22,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - fix(mcp): ensure graceful shutdown of reconciliation controller via signal-aware context
+- fix(logger): safely handle nil context in FromContext to prevent panics
+- fix(ci): resolve Cosign version resolution and bundle signing issues
 
 ## [v0.2.0-alpha.1] (Declarative V2) - 2026-05-09
 
