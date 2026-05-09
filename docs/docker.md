@@ -76,8 +76,64 @@ You can use the local `bridgectl` binary to interact with the server running in 
 - **Metrics:**
   Prometheus metrics are available at `http://localhost:8080/metrics`.
 
-## 6. Troubleshooting
+## 6. Connecting MCP Clients
+
+ERPBridge can be connected to any MCP-compatible client using either the **Stdio** or **HTTP (SSE)** transport.
+
+### Claude Desktop (Stdio)
+
+Claude Desktop typically interacts with MCP servers via standard I/O inside a Docker container.
+
+1.  **Locate Configuration:**
+    - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+    - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+2.  **Add ERPBridge Server:**
+    Add the following to the `mcpServers` section. This command runs the server in "stdio" mode inside a container.
+
+    ```json
+    {
+      "mcpServers": {
+        "erpbridge": {
+          "command": "docker",
+          "args": [
+            "run",
+            "-i",
+            "--rm",
+            "-v", "/absolute/path/to/ERPBridge/schemas:/app/schemas",
+            "erpbridge-server:latest",
+            "--stdio"
+          ]
+        }
+      }
+    }
+    ```
+    *Note: Replace `/absolute/path/to/ERPBridge/schemas` with your actual local path to ensure the container can see your tool definitions.*
+
+3.  **Restart Claude:** Fully quit and restart Claude Desktop. Look for the tool icon in the chat input.
+
+### Cursor (HTTP / SSE)
+
+Cursor supports connecting to remote MCP servers via HTTP. This is the recommended method when your ERPBridge stack is already running via `docker compose up`.
+
+1.  **Ensure Server is Running:**
+    Verify your stack is up and the server is reachable at `http://localhost:8080`.
+
+2.  **Configure Cursor:**
+    - Open Cursor **Settings** (`Cmd+,` or `Ctrl+,`).
+    - Navigate to **Features** > **MCP**.
+    - Click **+ Add New MCP Server**.
+    - **Name:** `ERPBridge`
+    - **Type:** `sse`
+    - **URL:** `http://localhost:8080/mcp/sse` (Note: The server appends `/mcp/` to the base URL).
+
+3.  **Verify:**
+    Once added, you should see a green status indicator. You can now use ERP tools in Cursor Chat or Composer.
+
+## 7. Troubleshooting
 
 - **Connection Refused:** Ensure `ERP_BASE_URL` in `docker-compose.yml` uses the service name `http://mock-erp:8081` rather than `localhost`.
+- **Claude Stdio Timeout:** If Claude fails to connect, try building the server binary first and running it directly to ensure there are no startup errors (e.g., missing dependencies).
 - **Cache Issues:** If semantic search is not working, check the `embedder` container logs to ensure the model is loaded correctly.
 - **Schema Errors:** Use `./bridgectl tool validate schemas/path/to/tool.json` to debug invalid tool definitions.
+
