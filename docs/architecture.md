@@ -47,14 +47,24 @@ A background loop that runs inside the ERPBridge server. Every few seconds, it c
 If a discrepancy is found (e.g., a new tool was applied via CLI), the controller automatically registers/updates the tool in the runtime without requiring a restart.
 
 ### 4. Execution Mapping Layer
-This layer translates LLM-friendly arguments into ERP-specific technical requirements:
-- **Parameter Mapping**: Translates LLM argument names to ERP field names.
-- **Credential Resolution**: Resolves `credentialRef` (e.g., `ERP_PRIMARY_KEY`) against environment variables or a vault to inject secrets securely into the outbound HTTP request.
-- **Response Unwrapping**: Uses the `responsePath` to extract relevant data from complex ERP payloads before returning them to the LLM.
+... (existing content)
+
+---
+
+## 🛠 Tool Generation & Templating
+
+ERPBridge uses a "Template-Based Generation" approach. When generating tools (especially in bulk from OpenAPI):
+
+1. **The Template**: A `Registered API` acts as the source of technical truth (URL, Auth, Module).
+2. **The Spec**: An `OpenAPI Definition` acts as the source of semantic truth (Paths, Parameters, Descriptions).
+3. **The Result**: The generator merges these, creating production-ready MCP tools that are pre-configured with your environment's connectivity and security settings.
+
+This decoupling allows you to use the same OpenAPI spec to generate tools for different environments (Dev, Staging, Prod) simply by pointing to a different registered API.
 
 ---
 
 ## 🔄 Lifecycle of a Tool Change
+... (rest of the file)
 
 1.  **Define**: Developer creates a V2 YAML schema for a new tool.
 2.  **Validate**: Runs `bridgectl tool validate -f tool.yaml` to check for syntax and admission rules (e.g., no raw secrets).

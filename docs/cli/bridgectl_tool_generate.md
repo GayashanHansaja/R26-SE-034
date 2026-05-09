@@ -1,18 +1,33 @@
 ## bridgectl tool generate
 
-Auto-generate an MCP tool schema from a registered API or OpenAPI spec
+Auto-generate an MCP tool schema from a registered API or OpenAPI spec.
 
-```
+### Requirement: Registered API
+Even when generating tools from an external OpenAPI/Swagger specification, you **must** provide a registered API name via the `--api` flag. 
+
+The registered API serves as a **connection template**. It provides:
+1. **Base URL**: The actual host where the tools will be executed.
+2. **Authentication**: The strategy (API Key, Bearer, etc.) and credential references.
+3. **Module**: The organizational module (e.g., HR, Finance) the tools belong to.
+
+```bash
 bridgectl tool generate [flags]
 ```
 
-### Options
+### Examples
 
+#### Generate from a single registered API
+```bash
+bridgectl tool generate --api get-employee
 ```
-      --api string       Name of the registered API to generate from
-  -h, --help             help for generate
-      --openapi string   URL or path to an OpenAPI spec
+
+#### Generate batch tools from OpenAPI using an API template
+```bash
+bridgectl tool generate --api erp-base --openapi ./spec.yaml
 ```
+
+### Options
+... (rest of the file)
 
 ### Options inherited from parent commands
 
