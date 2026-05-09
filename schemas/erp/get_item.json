@@ -1,0 +1,46 @@
+{
+  "apiVersion": "erpbridge.io/v1",
+  "kind": "MCPTool",
+  "metadata": {
+    "name": "get_item",
+    "version": "1.0.0",
+    "module": "erp"
+  },
+  "spec": {
+    "description": {
+      "short": "Retrieve detailed technical and commercial information for a specific item by its item code or name.",
+      "whenToUse": null,
+      "whenNotToUse": null,
+      "examples": null
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "outputSchema": {
+      "properties": {
+        "data": {
+          "$ref": "#/components/schemas/Item"
+        }
+      },
+      "type": "object"
+    },
+    "execution": {
+      "type": "http",
+      "method": "GET",
+      "endpoint": "http://localhost:8081/api/resource/Item/{name}",
+      "responsePath": "data"
+    },
+    "security": {
+      "authType": "api-key",
+      "credentialRef": "ERP_PRIMARY_KEY"
+    }
+  }
+}

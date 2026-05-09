@@ -1,0 +1,67 @@
+{
+  "apiVersion": "erpbridge.io/v1",
+  "kind": "MCPTool",
+  "metadata": {
+    "name": "create_purchase_invoice",
+    "version": "1.0.0",
+    "module": "erp"
+  },
+  "spec": {
+    "description": {
+      "short": "Create a new purchase invoice draft in the finance module (requires finance_editor role).",
+      "whenToUse": null,
+      "whenNotToUse": null,
+      "examples": null
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "docstatus": {
+          "type": "integer"
+        },
+        "doctype": {
+          "type": "string"
+        },
+        "grand_total": {
+          "type": "number"
+        },
+        "items": {
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "posting_date": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "supplier": {
+          "type": "string"
+        },
+        "supplier_name": {
+          "type": "string"
+        }
+      }
+    },
+    "outputSchema": {
+      "properties": {
+        "data": {
+          "$ref": "#/components/schemas/PurchaseInvoice"
+        }
+      },
+      "type": "object"
+    },
+    "execution": {
+      "type": "http",
+      "method": "POST",
+      "endpoint": "http://localhost:8081/api/resource/Purchase Invoice",
+      "responsePath": "data"
+    },
+    "security": {
+      "authType": "api-key",
+      "credentialRef": "ERP_PRIMARY_KEY"
+    }
+  }
+}

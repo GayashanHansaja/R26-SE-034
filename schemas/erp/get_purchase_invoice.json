@@ -1,0 +1,46 @@
+{
+  "apiVersion": "erpbridge.io/v1",
+  "kind": "MCPTool",
+  "metadata": {
+    "name": "get_purchase_invoice",
+    "version": "1.0.0",
+    "module": "erp"
+  },
+  "spec": {
+    "description": {
+      "short": "Retrieve the full details of a single purchase invoice by its unique name (e.g., ACC-PINV-2026-00001).",
+      "whenToUse": null,
+      "whenNotToUse": null,
+      "examples": null
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "outputSchema": {
+      "properties": {
+        "data": {
+          "$ref": "#/components/schemas/PurchaseInvoice"
+        }
+      },
+      "type": "object"
+    },
+    "execution": {
+      "type": "http",
+      "method": "GET",
+      "endpoint": "http://localhost:8081/api/resource/Purchase Invoice/{name}",
+      "responsePath": "data"
+    },
+    "security": {
+      "authType": "api-key",
+      "credentialRef": "ERP_PRIMARY_KEY"
+    }
+  }
+}
