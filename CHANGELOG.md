@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.0-alpha.1] (Declarative V2) - 2026-05-09
+
+### Added
+- feat(mcp): implement Declarative Control Plane with SQLite registry
+- feat(mcp): add SemVer-based tool versioning and resolution
+- feat(mcp): implement background reconciliation controller
+- feat(cli): add `bridgectl tool apply`, `get`, `delete`, and `describe`
+- feat(cli): add dynamic shell auto-completion for tool resources
+- feat(idp): enhance OpenAPI generator with semantic naming and pluralization
+- docs: add V2 architecture overview and schema reference guides
+
+### Changed
+- refactor(mcp): migrate from file-system hot-reloading to API-driven registry
+- refactor(security): decouple secrets from schemas using `credentialRef`
+- chore(config): migrate all technical ERP schemas to semantic intent-based V2 format
+
+### Fixed
+- fix(cli): resolve lint issues and missing error checks for HTTP body close
+- fix(test): update all test suites to align with V2 architecture
+
 ## [v0.1.0-alpha.4] (Kotiya) - 2026-05-08
 
 ### Added
