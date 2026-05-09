@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.0-alpha.2] (Observability & Hardening) - 2026-05-09
+
+### Added
+- feat(mcp): implement Server Hooks for lifecycle telemetry and business logic
+- feat(mcp): implement deletion reconciliation (automatic tool deregistration)
+- feat(mcp): add tool icons and output schema validation
+- feat(metrics): add server lifecycle and session Prometheus metrics
+- ci: modernize GoReleaser config with multi-platform builds, SBOM (Syft), and Signing (Cosign)
+
+### Changed
+- refactor(mcp): optimize reconciliation loop with state-hash short-circuiting
+- refactor(mcp): migrate built-in system tools to type-safe structured handlers
+- chore(ci): harden production Dockerfile with non-root user and pinned Alpine 3.22.4
+- ci: update GitHub Actions to latest major versions (checkout@v6, setup-go@v6, goreleaser@v7)
+
+### Fixed
+- fix(mcp): ensure graceful shutdown of reconciliation controller via signal-aware context
+
 ## [v0.2.0-alpha.1] (Declarative V2) - 2026-05-09
 
 ### Added
