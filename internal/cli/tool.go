@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -32,20 +33,9 @@ var toolApplyCmd = &cobra.Command{
 			return fmt.Errorf("file path is required")
 		}
 
-		data, err := os.ReadFile(filePath)
+		info, err := os.Stat(filePath)
 		if err != nil {
 			return err
-		}
-
-		var tool mcp.Tool
-		if strings.HasSuffix(filePath, ".yaml") || strings.HasSuffix(filePath, ".yml") {
-			if err := yaml.Unmarshal(data, &tool); err != nil {
-				return fmt.Errorf("unmarshal yaml: %w", err)
-			}
-		} else {
-			if err := json.Unmarshal(data, &tool); err != nil {
-				return fmt.Errorf("unmarshal json: %w", err)
-			}
 		}
 
 		ctx := cfg.ActiveContext()
@@ -54,26 +44,62 @@ var toolApplyCmd = &cobra.Command{
 		}
 		url := ctx.MCPServer + "/apis/erpbridge.io/v1/tools"
 
-		payload, _ := json.Marshal(tool)
-		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodPost, url, bytes.NewReader(payload))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Content-Type", "application/json")
+		applyFile := func(path string) error {
+			if !strings.HasSuffix(path, ".json") && !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
+				return nil
+			}
 
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("apply failed: %w", err)
-		}
-		defer func() { _ = resp.Body.Close() }()
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
 
-		if resp.StatusCode >= 400 {
-			body, _ := io.ReadAll(resp.Body)
-			return fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+			var tool mcp.Tool
+			if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
+				if err := yaml.Unmarshal(data, &tool); err != nil {
+					return fmt.Errorf("unmarshal yaml (%s): %w", path, err)
+				}
+			} else {
+				if err := json.Unmarshal(data, &tool); err != nil {
+					return fmt.Errorf("unmarshal json (%s): %w", path, err)
+				}
+			}
+
+			payload, _ := json.Marshal(tool)
+			req, err := http.NewRequestWithContext(cmd.Context(), http.MethodPost, url, bytes.NewReader(payload))
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return fmt.Errorf("apply failed (%s): %w", path, err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode >= 400 {
+				body, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("server error (%d) for %s: %s", resp.StatusCode, path, string(body))
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "tool %s@%s applied successfully\n", tool.Metadata.Name, tool.Metadata.Version)
+			return nil
 		}
 
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "tool %s@%s applied successfully\n", tool.Metadata.Name, tool.Metadata.Version)
-		return nil
+		if info.IsDir() {
+			return filepath.Walk(filePath, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if info.IsDir() {
+					return nil
+				}
+				return applyFile(path)
+			})
+		}
+
+		return applyFile(filePath)
 	},
 }
 
