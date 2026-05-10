@@ -361,16 +361,36 @@ var toolGenerateCmd = &cobra.Command{
 var toolDeleteCmd = &cobra.Command{
 	Use:   "delete [name] [version]",
 	Short: "Remove a tool from the registry",
-	Args:  cobra.ExactArgs(2),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) < 2 {
+			return fmt.Errorf("missing required arguments.\nUsage: %s\nExample: bridgectl tool delete list_invoices v1.0.0", cmd.UseLine())
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 		version := args[1]
+		hard, _ := cmd.Flags().GetBool("hard")
+		yes, _ := cmd.Flags().GetBool("yes")
+
+		if hard && !yes {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "WARNING: This will permanently delete the tool '%s@%s' from the database. Are you sure? (y/N): ", name, version)
+			var response string
+			_, _ = fmt.Scanln(&response)
+			if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Operation aborted.")
+				return nil
+			}
+		}
 
 		ctx := cfg.ActiveContext()
 		if err := ValidateServerURL(ctx.MCPServer, "MCP", cfg.CurrentContext); err != nil {
 			return err
 		}
 		url := fmt.Sprintf("%s/apis/erpbridge.io/v1/tools?name=%s&version=%s", ctx.MCPServer, name, version)
+		if hard {
+			url += "&hard=true"
+		}
 
 		req, err := http.NewRequestWithContext(cmd.Context(), http.MethodDelete, url, nil)
 		if err != nil {
@@ -388,7 +408,11 @@ var toolDeleteCmd = &cobra.Command{
 			return fmt.Errorf("delete failed (%d): %s", resp.StatusCode, string(body))
 		}
 
-		fmt.Printf("tool %s@%s deleted\n", name, version)
+		if hard {
+			fmt.Printf("✓ tool %s@%s has been permanently deleted from the registry.\n", name, version)
+		} else {
+			fmt.Printf("✓ tool %s@%s is now in an inactive state and hidden from MCP clients.\n", name, version)
+		}
 		return nil
 	},
 }
@@ -408,4 +432,7 @@ func init() {
 	toolGenerateCmd.Flags().String("api", "", "Name of the registered API to generate from")
 	toolGenerateCmd.Flags().String("openapi", "", "URL or path to an OpenAPI spec")
 	_ = toolGenerateCmd.MarkFlagRequired("api")
+
+	toolDeleteCmd.Flags().Bool("hard", false, "Permanently delete the tool from the database")
+	toolDeleteCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt for hard delete")
 }

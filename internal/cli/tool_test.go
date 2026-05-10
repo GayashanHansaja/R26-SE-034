@@ -63,9 +63,19 @@ func TestToolGetCmd(t *testing.T) {
 	}
 }
 
+func TestToolDeleteCmd_Errors(t *testing.T) {
+	err := toolDeleteCmd.Args(toolDeleteCmd, []string{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing required arguments")
+
+	err = toolDeleteCmd.Args(toolDeleteCmd, []string{"tool1"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing required arguments")
+}
+
 func TestToolDeleteCmd(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer ts.Close()
 
@@ -76,11 +86,20 @@ func TestToolDeleteCmd(t *testing.T) {
 		},
 	}
 
-	toolDeleteCmd.SetContext(context.Background())
-	err := toolDeleteCmd.RunE(toolDeleteCmd, []string{"tool1", "1.0"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	t.Run("SoftDelete", func(t *testing.T) {
+		toolDeleteCmd.SetContext(context.Background())
+		_ = toolDeleteCmd.Flags().Set("hard", "false")
+		err := toolDeleteCmd.RunE(toolDeleteCmd, []string{"tool1", "1.0"})
+		require.NoError(t, err)
+	})
+
+	t.Run("HardDeleteWithYes", func(t *testing.T) {
+		toolDeleteCmd.SetContext(context.Background())
+		_ = toolDeleteCmd.Flags().Set("hard", "true")
+		_ = toolDeleteCmd.Flags().Set("yes", "true")
+		err := toolDeleteCmd.RunE(toolDeleteCmd, []string{"tool1", "1.0"})
+		require.NoError(t, err)
+	})
 }
 
 func TestToolValidateCmd(t *testing.T) {
