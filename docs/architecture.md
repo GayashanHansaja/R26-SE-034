@@ -37,16 +37,20 @@ One of the most important concepts in ERPBridge V2 is the distinction between re
 ### 1. Tool Resource Registry (The Source of Truth)
 Instead of loading files from a directory, the server maintains an internal **Tool Registry** backed by **SQLite**. This registry stores multiple versions of the same tool, allowing for safe rollouts and rollbacks.
 
+Each tool includes an `IsActive` flag. When a tool is "deleted" via the CLI, it is not immediately purged from the database; instead, it is marked as `IsActive = false`. This "soft-delete" pattern allows the system to manage visibility without breaking existing MCP sessions.
+
 ### 2. Version Resolver
-When an AI agent requests a tool (e.g., `list_employees`), the **Version Resolver** automatically selects the **latest stable version** (e.g., `list_employees@1.2.0`). This ensures that LLMs always interact with consistent, tested schemas even as development continues on newer versions.
+When an AI agent requests a tool (e.g., `list_employees`), the **Version Resolver** automatically selects the **latest stable version** (e.g., `list_employees@1.2.0`). It explicitly ignores any tools marked as inactive.
 
-### 3. Reconciliation Controller
-A background loop that runs inside the ERPBridge server. Every few seconds, it compares:
-- **Desired State**: Tools saved in the SQLite database.
-- **Actual State**: Tools currently registered in the live MCP server memory.
-If a discrepancy is found (e.g., a new tool was applied via CLI), the controller automatically registers/updates the tool in the runtime without requiring a restart.
+### 3. Visibility Filtering (JSON-RPC Interception)
+Because the underlying MCP runtime does not always support dynamic removal of tools from an active session, ERPBridge implements a **Visibility Filtering Layer**. 
 
-### 4. Execution Mapping Layer
+- **The Problem**: Once a tool is registered in memory, standard libraries often provide no way to "unregister" it without a restart.
+- **The Solution**: ERPBridge wraps the MCP server's HTTP handler and intercepts the `tools/list` response. Before the JSON-RPC result reaches the client, ERPBridge parses the list and removes any tools marked as `IsActive = false` in the internal registry.
+- **Result**: The client receives a "truthful" list of tools that perfectly matches the desired state of the control plane, even if the underlying runtime still technically knows about the "ghost" tools.
+
+### 4. Reconciliation Controller
+... (rest of components)
 ... (existing content)
 
 ---

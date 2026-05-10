@@ -531,12 +531,42 @@ ERPBridge provides suggestions for tool, resource, and prompt arguments. This is
 
 ---
 
-## 12. Hot Reloading
+## 12. Hot Reloading & Lifecycle
 
-ERPBridge supports **Hot Reloading** of tool schemas. If you add or modify a `.json` file in the `schemas/` directory, the server automatically detects the change and updates its tool registry.
+ERPBridge supports **Hot Reloading** and dynamic tool lifecycle management. If you add, modify, or delete tools via the `bridgectl` CLI, the server automatically updates its registry and notifies all active sessions.
 
-- **No restart required**: Active sessions will see the new tools immediately.
-- **Notification**: The server sends a `notifications/tools/list_changed` notification to all connected clients when a reload occurs.
+### 12.1 Standard Sync Notification
+When tools are added or removed, the server sends a standard notification:
+*   **Method**: `notifications/tools/list_changed`
+*   **Action**: Your client should re-call `tools/list` to get the updated set.
+
+### 12.2 ERPBridge Custom Notifications
+For more granular control, ERPBridge sends specific lifecycle events:
+
+#### `notifications/tool_deleted`
+Sent when a tool is deactivated (soft-deleted) from the registry.
+```json
+{
+  "method": "notifications/tool_deleted",
+  "params": {
+    "name": "finance.get_invoice",
+    "version": "1.0.0",
+    "reason": "deregistered from registry"
+  }
+}
+```
+
+#### `notifications/message`
+Used for system-wide alerts or administrative broadcasts.
+```json
+{
+  "method": "notifications/message",
+  "params": {
+    "message": "Server will undergo maintenance in 5 minutes",
+    "type": "system"
+  }
+}
+```
 
 ---
 
