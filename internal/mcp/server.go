@@ -491,46 +491,61 @@ func (s *Server) ServeHTTP(mux *http.ServeMux, baseURL string) {
 
 		streamableServer.ServeHTTP(iw, r)
 
-		// Try to parse the response to see if it's a tools/list result
-		var jsonResp struct {
-			JSONRPC string `json:"jsonrpc"`
-			ID      any    `json:"id"`
-			Result  struct {
-				Tools []mcp.Tool `json:"tools"`
-			} `json:"result"`
-		}
+		// mcp-go uses SSE format even in POST responses for streamable HTTP.
+		// We need to process each line and filter any 'data: ' blocks that contain tool lists.
+		lines := bytes.Split(buf.Bytes(), []byte("\n"))
+		var finalBody bytes.Buffer
 
-		if err := json.Unmarshal(buf.Bytes(), &jsonResp); err == nil && len(jsonResp.Result.Tools) > 0 {
-			// Filter the tools based on our active registry
-			filteredTools := make([]mcp.Tool, 0)
-			s.mu.RLock()
-			for _, t := range jsonResp.Result.Tools {
-				// Builtin tools (module=system) are always active
-				if strings.HasPrefix(t.Name, "system.") {
-					filteredTools = append(filteredTools, t)
+		for _, line := range lines {
+			if bytes.HasPrefix(line, []byte("data: ")) {
+				jsonData := bytes.TrimPrefix(line, []byte("data: "))
+
+				// Try to parse the JSON to see if it's a tools/list result
+				var jsonResp struct {
+					JSONRPC string `json:"jsonrpc"`
+					ID      any    `json:"id"`
+					Result  struct {
+						Tools []mcp.Tool `json:"tools"`
+					} `json:"result"`
+				}
+
+				if err := json.Unmarshal(jsonData, &jsonResp); err == nil && len(jsonResp.Result.Tools) > 0 {
+					// Filter the tools based on our active registry
+					filteredTools := make([]mcp.Tool, 0)
+					s.mu.RLock()
+					for _, t := range jsonResp.Result.Tools {
+						// Builtin tools (module=system) are always active
+						if strings.HasPrefix(t.Name, "system.") {
+							filteredTools = append(filteredTools, t)
+							continue
+						}
+
+						// Check if the tool is active in our registry
+						if entry, err := s.registry.Resolve(t.Name, ""); err == nil && entry.Metadata.IsActive {
+							filteredTools = append(filteredTools, t)
+						}
+					}
+					s.mu.RUnlock()
+
+					// Update the result and re-marshal
+					jsonResp.Result.Tools = filteredTools
+					newJSON, _ := json.Marshal(jsonResp)
+					finalBody.Write([]byte("data: "))
+					finalBody.Write(newJSON)
+					finalBody.Write([]byte("\n"))
 					continue
 				}
-
-				// Check if the tool is active in our registry
-				if entry, err := s.registry.Resolve(t.Name, ""); err == nil && entry.Metadata.IsActive {
-					filteredTools = append(filteredTools, t)
-				}
 			}
-			s.mu.RUnlock()
-
-			// Update the result and re-marshal
-			jsonResp.Result.Tools = filteredTools
-			newBody, _ := json.Marshal(jsonResp)
-
-			// Update Content-Length header if it was set
-			if w.Header().Get("Content-Length") != "" {
-				w.Header().Set("Content-Length", fmt.Sprintf("%d", len(newBody)))
-			}
-			_, _ = w.Write(newBody)
-		} else {
-			// Not a tools/list response or parsing failed, write original body
-			_, _ = w.Write(buf.Bytes())
+			// Not a tool list or not a data line, keep as is
+			finalBody.Write(line)
+			finalBody.Write([]byte("\n"))
 		}
+
+		// Update Content-Length header if it was set
+		if w.Header().Get("Content-Length") != "" {
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", finalBody.Len()))
+		}
+		_, _ = w.Write(finalBody.Bytes())
 	})
 
 	mux.Handle("/mcp/", http.StripPrefix("/mcp", filteredStreamable))
@@ -583,6 +598,8 @@ func (s *Server) handleToolApply(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "store not available", http.StatusInternalServerError)
 		return
 	}
+
+	t.Metadata.IsActive = true // Mark as active before saving
 
 	if err := s.store.Save(&t); err != nil {
 		http.Error(w, "failed to save tool: "+err.Error(), http.StatusInternalServerError)
