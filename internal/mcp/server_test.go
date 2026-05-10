@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -291,4 +292,55 @@ func TestServer_DirectInvoke(t *testing.T) {
 	w = httptest.NewRecorder()
 	s.handleDirectInvoke(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestServer_HandleToolDelete(t *testing.T) {
+	log := logger.Init()
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test.db")
+	s := NewServer(nil, nil, log, RateLimitConfig{RequestsPerSecond: 100, Burst: 100}, dbPath)
+
+	tool := &Tool{
+		Metadata: Metadata{
+			Name:    "delete-me",
+			Version: "1.0.0",
+			Module:  "test",
+		},
+	}
+	s.RegisterTool(tool)
+	_ = s.store.Save(tool)
+
+	t.Run("MissingParams", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/apis/erpbridge.io/v1/tools", nil)
+		w := httptest.NewRecorder()
+		s.handleToolDelete(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("SoftDelete", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/apis/erpbridge.io/v1/tools?name=delete-me&version=1.0.0", nil)
+		w := httptest.NewRecorder()
+		s.handleToolDelete(w, req)
+		assert.Equal(t, http.StatusNoContent, w.Code)
+
+		// Verify soft-deleted in store
+		dbTool, _ := s.store.Get("delete-me", "1.0.0")
+		assert.False(t, dbTool.Metadata.IsActive)
+	})
+
+	t.Run("HardDelete", func(t *testing.T) {
+		// Re-register and re-save
+		tool.Metadata.IsActive = true
+		s.RegisterTool(tool)
+		_ = s.store.Save(tool)
+
+		req := httptest.NewRequest("DELETE", "/apis/erpbridge.io/v1/tools?name=delete-me&version=1.0.0&hard=true", nil)
+		w := httptest.NewRecorder()
+		s.handleToolDelete(w, req)
+		assert.Equal(t, http.StatusNoContent, w.Code)
+
+		// Verify hard-deleted from store
+		_, err := s.store.Get("delete-me", "1.0.0")
+		assert.Error(t, err)
+	})
 }

@@ -631,19 +631,27 @@ func (s *Server) handleToolList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleToolDelete(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	version := r.URL.Query().Get("version")
+	hard := r.URL.Query().Get("hard") == "true"
 
 	if name == "" || version == "" {
 		http.Error(w, "missing name or version parameter", http.StatusBadRequest)
 		return
 	}
 
-	if err := s.store.Delete(name, version); err != nil {
-		http.Error(w, "failed to delete tool: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Immediate deactivation for responsiveness
+	// Immediate deactivation for responsiveness and client notification
 	s.DeregisterTool(name, version)
+
+	if hard {
+		if err := s.store.HardDelete(name, version); err != nil {
+			http.Error(w, "failed to hard delete tool: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		if err := s.store.Delete(name, version); err != nil {
+			http.Error(w, "failed to delete tool: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
