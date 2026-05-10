@@ -19,17 +19,19 @@ func TestStore(t *testing.T) {
 
 	tool1 := &Tool{
 		Metadata: Metadata{
-			Name:    "tool1",
-			Version: "1.0.0",
-			Module:  "mod1",
+			Name:     "tool1",
+			Version:  "1.0.0",
+			Module:   "mod1",
+			IsActive: true,
 		},
 	}
 
 	tool2 := &Tool{
 		Metadata: Metadata{
-			Name:    "tool1",
-			Version: "1.1.0",
-			Module:  "mod1",
+			Name:     "tool1",
+			Version:  "1.1.0",
+			Module:   "mod1",
+			IsActive: true,
 		},
 	}
 
@@ -78,11 +80,15 @@ func TestStore(t *testing.T) {
 
 		tools, err := store.List()
 		require.NoError(t, err)
-		assert.Len(t, tools, 1)
+		assert.Len(t, tools, 2) // Remains in DB (soft-delete)
+
+		res, err := store.Get("tool1", "1.0.0")
+		require.NoError(t, err)
+		assert.False(t, res.Metadata.IsActive)
 
 		hash, err := store.GetStateHash()
 		require.NoError(t, err)
-		assert.Contains(t, hash, "1-") // Count is 1
+		assert.Contains(t, hash, "2-") // Count remains 2
 	})
 }
 
@@ -110,7 +116,7 @@ func TestStore_GetStateHash_Empty(t *testing.T) {
 
 	hash, err := store.GetStateHash()
 	require.NoError(t, err)
-	assert.Equal(t, "0-", hash) // 0 rows, empty max(updated_at)
+	assert.Equal(t, "0-0-", hash) // 0 rows, 0 sum, empty max(updated_at)
 }
 
 func TestStore_DBClosed(t *testing.T) {

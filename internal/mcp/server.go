@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -325,6 +326,9 @@ func (s *Server) Reconcile(ctx context.Context) {
 
 	desiredMap := make(map[string]bool)
 	for _, dt := range desiredTools {
+		if !dt.Metadata.IsActive {
+			continue
+		}
 		key := fmt.Sprintf("%s@%s", dt.Metadata.Name, dt.Metadata.Version)
 		desiredMap[key] = true
 
@@ -337,7 +341,7 @@ func (s *Server) Reconcile(ctx context.Context) {
 	}
 
 	// Deletion Reconciliation: Identify tools in actual state that are missing from desired state
-	actualTools := s.registry.ListAll()
+	actualTools := s.registry.ListActive() // Use ListActive to find currently active tools
 	for _, at := range actualTools {
 		// Builtin system tools are not managed by SQLite
 		if at.Metadata.Module == "system" {
@@ -346,7 +350,7 @@ func (s *Server) Reconcile(ctx context.Context) {
 
 		key := fmt.Sprintf("%s@%s", at.Metadata.Name, at.Metadata.Version)
 		if !desiredMap[key] {
-			s.log.Info("reconciling tool (removing stale)", slog.String("name", at.Metadata.Name), slog.String("version", at.Metadata.Version))
+			s.log.Info("reconciling tool (deactivating stale)", slog.String("name", at.Metadata.Name), slog.String("version", at.Metadata.Version))
 			s.DeregisterTool(at.Metadata.Name, at.Metadata.Version)
 		}
 	}
@@ -363,15 +367,17 @@ func (s *Server) DeregisterTool(name, version string) {
 
 	s.registry.Remove(name, version)
 
-	// Note: mcp-go MCPServer does not currently expose a way to remove tools
-	// from the client-advertised list at runtime. However, by removing it
-	// from our registry, any subsequent tool calls for this name will
-	// fail in handleMCPToolCall.
-
-	s.log.Info("deregistered MCP tool", slog.String("tool_name", name), slog.String("version", version))
+	s.log.Warn("tool removed from registry but requires filtering layer to hide from mcp-go's advertised list",
+		slog.String("tool_name", name),
+		slog.String("version", version))
 
 	// Notify clients that tools have changed
 	s.mcpServer.SendNotificationToAllClients("notifications/tools/list_changed", nil)
+
+	// Notify clients specifically about this deletion
+	if s.Notifier != nil {
+		s.Notifier.SendToolDeleted(name, version)
+	}
 }
 
 // RegisterTool adds a tool to the server's registry and active MCP server.
@@ -379,6 +385,7 @@ func (s *Server) RegisterTool(t *Tool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	t.Metadata.IsActive = true // Ensure it is marked as active when registered
 	if err := s.registry.Add(t); err != nil {
 		s.log.Error("failed to add tool to registry", slog.String("tool", t.Metadata.Name), slog.String("error", err.Error()))
 		return
@@ -466,7 +473,82 @@ func (s *Server) ServeHTTP(mux *http.ServeMux, baseURL string) {
 			server.WithCORSExposedHeaders("Mcp-Session-Id"),
 		),
 	)
-	mux.Handle("/mcp/", http.StripPrefix("/mcp", streamableServer))
+
+	// Wrap streamableServer with filtering middleware to hide inactive tools
+	filteredStreamable := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only intercept JSON-RPC POST requests
+		if r.Method != http.MethodPost {
+			streamableServer.ServeHTTP(w, r)
+			return
+		}
+
+		// Use a buffer to capture the response
+		buf := &bytes.Buffer{}
+		iw := &interceptingResponseWriter{
+			ResponseWriter: w,
+			body:           buf,
+		}
+
+		streamableServer.ServeHTTP(iw, r)
+
+		// mcp-go uses SSE format even in POST responses for streamable HTTP.
+		// We need to process each line and filter any 'data: ' blocks that contain tool lists.
+		lines := bytes.Split(buf.Bytes(), []byte("\n"))
+		var finalBody bytes.Buffer
+
+		for _, line := range lines {
+			if bytes.HasPrefix(line, []byte("data: ")) {
+				jsonData := bytes.TrimPrefix(line, []byte("data: "))
+
+				// Try to parse the JSON to see if it's a tools/list result
+				var jsonResp struct {
+					JSONRPC string `json:"jsonrpc"`
+					ID      any    `json:"id"`
+					Result  struct {
+						Tools []mcp.Tool `json:"tools"`
+					} `json:"result"`
+				}
+
+				if err := json.Unmarshal(jsonData, &jsonResp); err == nil && len(jsonResp.Result.Tools) > 0 {
+					// Filter the tools based on our active registry
+					filteredTools := make([]mcp.Tool, 0)
+					s.mu.RLock()
+					for _, t := range jsonResp.Result.Tools {
+						// Builtin tools (module=system) are always active
+						if strings.HasPrefix(t.Name, "system.") {
+							filteredTools = append(filteredTools, t)
+							continue
+						}
+
+						// Check if the tool is active in our registry
+						if entry, err := s.registry.Resolve(t.Name, ""); err == nil && entry.Metadata.IsActive {
+							filteredTools = append(filteredTools, t)
+						}
+					}
+					s.mu.RUnlock()
+
+					// Update the result and re-marshal
+					jsonResp.Result.Tools = filteredTools
+					newJSON, _ := json.Marshal(jsonResp)
+					finalBody.Write([]byte("data: "))
+					finalBody.Write(newJSON)
+					finalBody.Write([]byte("\n"))
+					continue
+				}
+			}
+			// Not a tool list or not a data line, keep as is
+			finalBody.Write(line)
+			finalBody.Write([]byte("\n"))
+		}
+
+		// Update Content-Length header if it was set
+		if w.Header().Get("Content-Length") != "" {
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", finalBody.Len()))
+		}
+		_, _ = w.Write(finalBody.Bytes())
+	})
+
+	mux.Handle("/mcp/", http.StripPrefix("/mcp", filteredStreamable))
 
 	// 3. Management & Utility Endpoints
 	mux.HandleFunc("/mcp/health", func(w http.ResponseWriter, r *http.Request) {
@@ -517,6 +599,8 @@ func (s *Server) handleToolApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	t.Metadata.IsActive = true // Mark as active before saving
+
 	if err := s.store.Save(&t); err != nil {
 		http.Error(w, "failed to save tool: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -557,6 +641,9 @@ func (s *Server) handleToolDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to delete tool: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Immediate deactivation for responsiveness
+	s.DeregisterTool(name, version)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -759,4 +846,20 @@ func (s *Server) handleLogRecent(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, "%s", string(l))
 	}
 	_, _ = fmt.Fprintf(w, "]")
+}
+
+// interceptingResponseWriter wraps http.ResponseWriter to capture the body.
+type interceptingResponseWriter struct {
+	http.ResponseWriter
+	body *bytes.Buffer
+}
+
+func (iw *interceptingResponseWriter) Write(b []byte) (int, error) {
+	return iw.body.Write(b)
+}
+
+func (iw *interceptingResponseWriter) Flush() {
+	if flusher, ok := iw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }

@@ -39,6 +39,7 @@ func (r *ToolRegistry) Add(t *Tool) error {
 
 // Resolve finds the appropriate version of a tool based on an optional version constraint.
 // If no version is specified, it returns the latest stable version.
+// It only returns tools that are active.
 func (r *ToolRegistry) Resolve(name string, versionConstraint string) (*Tool, error) {
 	versions, ok := r.tools[name]
 	if !ok {
@@ -48,6 +49,9 @@ func (r *ToolRegistry) Resolve(name string, versionConstraint string) (*Tool, er
 	if versionConstraint != "" {
 		// If explicit version like "list_employees@1.0.0" is passed
 		if t, ok := versions[versionConstraint]; ok {
+			if !t.Metadata.IsActive {
+				return nil, fmt.Errorf("tool %s@%s is inactive", name, versionConstraint)
+			}
 			return t, nil
 		}
 
@@ -61,6 +65,9 @@ func (r *ToolRegistry) Resolve(name string, versionConstraint string) (*Tool, er
 		var bestTool *Tool
 
 		for vStr, t := range versions {
+			if !t.Metadata.IsActive {
+				continue
+			}
 			v, _ := semver.NewVersion(vStr)
 			if c.Check(v) {
 				if bestVersion == nil || v.GreaterThan(bestVersion) {
@@ -73,7 +80,7 @@ func (r *ToolRegistry) Resolve(name string, versionConstraint string) (*Tool, er
 		if bestTool != nil {
 			return bestTool, nil
 		}
-		return nil, fmt.Errorf("no version of tool %s matches constraint %s", name, versionConstraint)
+		return nil, fmt.Errorf("no active version of tool %s matches constraint %s", name, versionConstraint)
 	}
 
 	// Default: Latest stable version (no pre-releases, highest version)
@@ -81,6 +88,9 @@ func (r *ToolRegistry) Resolve(name string, versionConstraint string) (*Tool, er
 	var latestTool *Tool
 
 	for vStr, t := range versions {
+		if !t.Metadata.IsActive {
+			continue
+		}
 		v, _ := semver.NewVersion(vStr)
 		if v.Prerelease() == "" {
 			if latestStable == nil || v.GreaterThan(latestStable) {
@@ -94,11 +104,14 @@ func (r *ToolRegistry) Resolve(name string, versionConstraint string) (*Tool, er
 		return latestTool, nil
 	}
 
-	// If no stable versions, return the absolute latest
+	// If no stable versions, return the absolute latest active
 	var absoluteLatest *semver.Version
 	var absoluteTool *Tool
 
 	for vStr, t := range versions {
+		if !t.Metadata.IsActive {
+			continue
+		}
 		v, _ := semver.NewVersion(vStr)
 		if absoluteLatest == nil || v.GreaterThan(absoluteLatest) {
 			absoluteLatest = v
@@ -110,10 +123,10 @@ func (r *ToolRegistry) Resolve(name string, versionConstraint string) (*Tool, er
 		return absoluteTool, nil
 	}
 
-	return nil, fmt.Errorf("no version found for tool %s", name)
+	return nil, fmt.Errorf("no active version found for tool %s", name)
 }
 
-// ListStable returns the latest stable version of all tools.
+// ListStable returns the latest stable version of all active tools.
 func (r *ToolRegistry) ListStable() []*Tool {
 	var result []*Tool
 	for name := range r.tools {
@@ -127,22 +140,34 @@ func (r *ToolRegistry) ListStable() []*Tool {
 	return result
 }
 
-// Remove removes a specific version of a tool from the registry.
+// Remove deactivates a specific version of a tool in the registry instead of removing it.
 func (r *ToolRegistry) Remove(name, version string) {
 	if versions, ok := r.tools[name]; ok {
-		delete(versions, version)
-		if len(versions) == 0 {
-			delete(r.tools, name)
+		if t, ok := versions[version]; ok {
+			t.Metadata.IsActive = false
 		}
 	}
 }
 
-// ListAll returns all versions of all tools.
+// ListAll returns all versions of all tools (including inactive ones).
 func (r *ToolRegistry) ListAll() []*Tool {
 	var result []*Tool
 	for _, versions := range r.tools {
 		for _, t := range versions {
 			result = append(result, t)
+		}
+	}
+	return result
+}
+
+// ListActive returns all active versions of all tools.
+func (r *ToolRegistry) ListActive() []*Tool {
+	var result []*Tool
+	for _, versions := range r.tools {
+		for _, t := range versions {
+			if t.Metadata.IsActive {
+				result = append(result, t)
+			}
 		}
 	}
 	return result

@@ -43,9 +43,10 @@ func (s *Store) init() error {
 		name TEXT,
 		version TEXT,
 		module TEXT,
+		is_active INTEGER DEFAULT 1,
 		data TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		created_at DATETIME DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),
+		updated_at DATETIME DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),
 		PRIMARY KEY (name, version)
 	);
 	CREATE INDEX IF NOT EXISTS idx_tools_module ON tools(module);
@@ -54,6 +55,10 @@ func (s *Store) init() error {
 	if err != nil {
 		return fmt.Errorf("initialize schema: %w", err)
 	}
+
+	// Migration: Add is_active column if it doesn't exist (for existing DBs)
+	_, _ = s.db.Exec("ALTER TABLE tools ADD COLUMN is_active INTEGER DEFAULT 1")
+
 	return nil
 }
 
@@ -64,15 +69,21 @@ func (s *Store) Save(t *Tool) error {
 		return fmt.Errorf("marshal tool: %w", err)
 	}
 
+	isActive := 1
+	if !t.Metadata.IsActive {
+		isActive = 0
+	}
+
 	query := `
-	INSERT INTO tools (name, version, module, data, updated_at)
-	VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+	INSERT INTO tools (name, version, module, is_active, data, updated_at)
+	VALUES (?, ?, ?, ?, ?, (STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')))
 	ON CONFLICT(name, version) DO UPDATE SET
 		module = excluded.module,
+		is_active = excluded.is_active,
 		data = excluded.data,
-		updated_at = CURRENT_TIMESTAMP;
+		updated_at = (STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW'));
 	`
-	_, err = s.db.Exec(query, t.Metadata.Name, t.Metadata.Version, t.Metadata.Module, string(data))
+	_, err = s.db.Exec(query, t.Metadata.Name, t.Metadata.Version, t.Metadata.Module, isActive, string(data))
 	if err != nil {
 		return fmt.Errorf("save tool: %w", err)
 	}
@@ -108,14 +119,15 @@ func (s *Store) List() ([]*Tool, error) {
 // GetStateHash returns a string representing the current state of the tools table.
 // This is used to short-circuit reconciliation if no changes have occurred.
 func (s *Store) GetStateHash() (string, error) {
-	query := `SELECT COUNT(*), COALESCE(MAX(updated_at), '') FROM tools`
+	query := `SELECT COUNT(*), COALESCE(SUM(is_active), 0), COALESCE(MAX(updated_at), '') FROM tools`
 	var count int
+	var activeSum int
 	var maxUpdated string
-	err := s.db.QueryRow(query).Scan(&count, &maxUpdated)
+	err := s.db.QueryRow(query).Scan(&count, &activeSum, &maxUpdated)
 	if err != nil {
 		return "", fmt.Errorf("get state hash: %w", err)
 	}
-	return fmt.Sprintf("%d-%s", count, maxUpdated), nil
+	return fmt.Sprintf("%d-%d-%s", count, activeSum, maxUpdated), nil
 }
 
 // Get retrieves a specific version of a tool.
@@ -137,14 +149,16 @@ func (s *Store) Get(name, version string) (*Tool, error) {
 	return &t, nil
 }
 
-// Delete removes a tool version from the database.
+// Delete performs a soft-delete by marking the tool as inactive.
 func (s *Store) Delete(name, version string) error {
-	query := `DELETE FROM tools WHERE name = ? AND version = ?`
-	_, err := s.db.Exec(query, name, version)
+	// First get the tool to ensure it exists and to update its JSON data
+	t, err := s.Get(name, version)
 	if err != nil {
-		return fmt.Errorf("delete tool: %w", err)
+		return err
 	}
-	return nil
+
+	t.Metadata.IsActive = false
+	return s.Save(t)
 }
 
 // Close closes the database connection.

@@ -22,7 +22,7 @@ func TestToolRegistry_Add(t *testing.T) {
 
 	// Valid add
 	err := registry.Add(&Tool{
-		Metadata: Metadata{Name: "tool1", Version: "1.0.0"},
+		Metadata: Metadata{Name: "tool1", Version: "1.0.0", IsActive: true},
 	})
 	assert.NoError(t, err)
 
@@ -38,11 +38,11 @@ func TestToolRegistry_Resolve(t *testing.T) {
 	registry := NewToolRegistry()
 
 	tools := []*Tool{
-		{Metadata: Metadata{Name: "tool1", Version: "1.0.0"}},
-		{Metadata: Metadata{Name: "tool1", Version: "1.1.0"}},
-		{Metadata: Metadata{Name: "tool1", Version: "2.0.0-beta.1"}}, // prerelease
-		{Metadata: Metadata{Name: "tool2", Version: "1.0.0-rc.1"}},   // only prerelease
-		{Metadata: Metadata{Name: "tool2", Version: "1.0.0-rc.2"}},   // higher prerelease
+		{Metadata: Metadata{Name: "tool1", Version: "1.0.0", IsActive: true}},
+		{Metadata: Metadata{Name: "tool1", Version: "1.1.0", IsActive: true}},
+		{Metadata: Metadata{Name: "tool1", Version: "2.0.0-beta.1", IsActive: true}}, // prerelease
+		{Metadata: Metadata{Name: "tool2", Version: "1.0.0-rc.1", IsActive: true}},   // only prerelease
+		{Metadata: Metadata{Name: "tool2", Version: "1.0.0-rc.2", IsActive: true}},   // higher prerelease
 	}
 
 	for _, tool := range tools {
@@ -92,9 +92,9 @@ func TestToolRegistry_Resolve(t *testing.T) {
 func TestToolRegistry_ListStable(t *testing.T) {
 	registry := NewToolRegistry()
 
-	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "b_tool", Version: "1.0.0"}}))
-	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "b_tool", Version: "1.1.0"}}))
-	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "a_tool", Version: "2.0.0"}}))
+	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "b_tool", Version: "1.0.0", IsActive: true}}))
+	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "b_tool", Version: "1.1.0", IsActive: true}}))
+	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "a_tool", Version: "2.0.0", IsActive: true}}))
 
 	stable := registry.ListStable()
 	require.Len(t, stable, 2)
@@ -107,8 +107,8 @@ func TestToolRegistry_ListStable(t *testing.T) {
 func TestToolRegistry_ListAll(t *testing.T) {
 	registry := NewToolRegistry()
 
-	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "tool1", Version: "1.0.0"}}))
-	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "tool1", Version: "1.1.0"}}))
+	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "tool1", Version: "1.0.0", IsActive: true}}))
+	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "tool1", Version: "1.1.0", IsActive: true}}))
 
 	all := registry.ListAll()
 	assert.Len(t, all, 2)
@@ -117,8 +117,8 @@ func TestToolRegistry_ListAll(t *testing.T) {
 func TestToolRegistry_Remove(t *testing.T) {
 	registry := NewToolRegistry()
 
-	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "tool1", Version: "1.0.0"}}))
-	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "tool1", Version: "1.1.0"}}))
+	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "tool1", Version: "1.0.0", IsActive: true}}))
+	require.NoError(t, registry.Add(&Tool{Metadata: Metadata{Name: "tool1", Version: "1.1.0", IsActive: true}}))
 
 	registry.Remove("tool1", "1.0.0")
 

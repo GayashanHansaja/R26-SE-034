@@ -110,7 +110,7 @@ func TestServer_Reconcile_And_Deregister(t *testing.T) {
 
 	// Add a tool to the store
 	tool := &Tool{
-		Metadata: Metadata{Name: "recon-tool", Version: "1.0.0"},
+		Metadata: Metadata{Name: "recon-tool", Version: "1.0.0", IsActive: true},
 		Spec:     ToolSpec{Description: Description{Short: "Test"}},
 	}
 	err := s.store.Save(tool)
@@ -130,6 +130,9 @@ func TestServer_Reconcile_And_Deregister(t *testing.T) {
 	// Now delete from store and Reconcile, should deregister
 	err = s.store.Delete("recon-tool", "1.0.0")
 	assert.NoError(t, err)
+
+	// Force hash change by waiting a bit
+	time.Sleep(100 * time.Millisecond)
 
 	s.Reconcile(context.Background())
 

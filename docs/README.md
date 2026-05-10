@@ -5,6 +5,7 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 ## 📖 Core Documentation
 
 - **[Architecture Overview](./architecture.md)**: Understanding the Declarative Control Plane, SQLite registry, and reconciliation loop.
+- **[Onboarding New APIs](./onboarding.md)**: Standard workflow for registering APIs and generating MCP tools.
 - **[Tool Schema Reference (V2)](./tool-schema.md)**: Detailed guide to creating versioned, intent-based MCP tool definitions.
 - **[Docker Deployment Guide](./docker.md)**: Detailed instructions for running the full stack using Docker Compose.
 - **[Connectivity & Transport Guide](./connectivity.md)**: Understanding SSE, Streamable HTTP, and Direct API transports.
