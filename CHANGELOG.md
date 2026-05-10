@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.0-alpha.4] - 2026-05-10
+
+### Added
+- docs: add comprehensive "Onboarding New APIs" guide with troubleshooting and quick reference
+- feat(cli): add recursive directory support for `bridgectl tool apply -f`
+
+### Changed
+- docs: update README.md index to include onboarding guide
+- docs: polish and expand onboarding guide for better developer experience
+
+### Fixed
+- fix(cli): resolve issue where `bridgectl tool apply` failed on directory paths
+
 ## [v0.2.0-alpha.3] - 2026-05-10
 
 ### Changed
