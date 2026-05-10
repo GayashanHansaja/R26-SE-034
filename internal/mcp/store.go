@@ -161,6 +161,16 @@ func (s *Store) Delete(name, version string) error {
 	return s.Save(t)
 }
 
+// HardDelete permanently removes a tool from the database.
+func (s *Store) HardDelete(name, version string) error {
+	query := `DELETE FROM tools WHERE name = ? AND version = ?`
+	_, err := s.db.Exec(query, name, version)
+	if err != nil {
+		return fmt.Errorf("hard delete tool: %w", err)
+	}
+	return nil
+}
+
 // Close closes the database connection.
 func (s *Store) Close() error {
 	return s.db.Close()

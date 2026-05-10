@@ -90,6 +90,22 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, hash, "2-") // Count remains 2
 	})
+
+	t.Run("HardDelete", func(t *testing.T) {
+		err := store.HardDelete("tool1", "1.0.0")
+		require.NoError(t, err)
+
+		tools, err := store.List()
+		require.NoError(t, err)
+		assert.Len(t, tools, 1) // Physically removed
+
+		_, err = store.Get("tool1", "1.0.0")
+		assert.Error(t, err) // Not found
+
+		hash, err := store.GetStateHash()
+		require.NoError(t, err)
+		assert.Contains(t, hash, "1-") // Count is now 1
+	})
 }
 
 func TestStore_NewStore_Errors(t *testing.T) {
