@@ -29,10 +29,11 @@ type Tool struct {
 
 // Metadata contains identity and lifecycle information for a tool.
 type Metadata struct {
-	Name    string `json:"name"`
-	Version string `json:"version"` // SemVer
-	Module  string `json:"module"`
-	Status  string `json:"status,omitempty"` // ready, degraded
+	Name     string `json:"name"`
+	Version  string `json:"version"` // SemVer
+	Module   string `json:"module"`
+	Status   string `json:"status,omitempty"`   // ready, degraded
+	IsActive bool   `json:"isActive,omitempty"` // for soft-delete/visibility
 }
 
 // ToolSpec defines the behavior, interface, and execution details of a tool.

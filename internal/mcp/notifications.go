@@ -40,3 +40,12 @@ func (n *CustomNotifier) BroadcastSystemMessage(message string) {
 		"type":    "system",
 	})
 }
+
+// SendToolDeleted notifies all clients that a specific tool has been deleted.
+func (n *CustomNotifier) SendToolDeleted(name, version string) {
+	n.mcpServer.SendNotificationToAllClients("notifications/tool_deleted", map[string]any{
+		"name":    name,
+		"version": version,
+		"reason":  "tool deregistered from registry",
+	})
+}

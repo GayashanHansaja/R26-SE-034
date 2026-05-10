@@ -171,8 +171,14 @@ func (r *ToolListResponse) RenderTable(w io.Writer) error {
 	tw := output.NewTabWriter(w)
 	_, _ = fmt.Fprintln(tw, "NAME\tMODULE\tVERSION\tSTATUS")
 	for _, t := range r.Tools {
+		status := t.Metadata.Status
+		if !t.Metadata.IsActive {
+			status = "HIDDEN"
+		} else if status == "" {
+			status = "READY"
+		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
-			t.Metadata.Name, t.Metadata.Module, t.Metadata.Version, t.Metadata.Status)
+			t.Metadata.Name, t.Metadata.Module, t.Metadata.Version, status)
 	}
 	return tw.Flush()
 }
