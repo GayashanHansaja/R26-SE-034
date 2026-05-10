@@ -1,0 +1,13 @@
+apiVersion: erpbridge.io/v1
+kind: MCPTool
+metadata:
+  name: <NAME>
+  module: <MODULE>
+spec:
+  description:
+    short: ""         # ← fill in
+    whenToUse: ""     # ← fill in
+    examples: []      # ← fill in
+  endpoint:
+    ref: <NAME>
+    method: <METHOD>
