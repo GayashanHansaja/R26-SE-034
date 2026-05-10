@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.0-alpha.5] - 2026-05-10
+
+### Added
+- feat(db): add `HardDelete` support to SQLite store for permanent tool removal
+- feat(server): support `hard=true` parameter in tool delete API
+- feat(cli): enhance `bridgectl tool delete` with `--hard` flag and interactive confirmation
+- feat(cli): add `-y, --yes` flag to bypass hard-delete confirmation
+- test: add comprehensive tests for hard-delete in database, server, and CLI layers
+
+### Changed
+- docs: update `tool delete` documentation and onboarding guide with hard-delete instructions
+- style(cli): improve `tool delete` error messaging for missing arguments
+- style(cli): improve `tool delete` success output with descriptive states
+
 ## [v0.2.0-alpha.4] - 2026-05-10
 
 ### Added
