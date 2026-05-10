@@ -2,7 +2,9 @@
 
 Remove a tool from the registry.
 
-**Note**: This command performs a **soft-delete**. The tool is marked as inactive in the registry and will be hidden from MCP clients immediately, but remains in the database for audit and reconciliation safety.
+**Note**: By default, this command performs a **soft-delete**. The tool is marked as inactive in the registry and will be hidden from MCP clients immediately, but remains in the database for audit and reconciliation safety.
+
+Use the `--hard` flag to permanently remove the tool from the database.
 
 ```
 bridgectl tool delete [name] [version] [flags]
@@ -11,7 +13,9 @@ bridgectl tool delete [name] [version] [flags]
 ### Options
 
 ```
-  -h, --help   help for delete
+      --hard     Permanently delete the tool from the database (requires confirmation)
+  -y, --yes      Skip confirmation prompt for hard delete
+  -h, --help     help for delete
 ```
 
 ### Options inherited from parent commands

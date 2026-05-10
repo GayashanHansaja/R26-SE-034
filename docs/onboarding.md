@@ -122,8 +122,10 @@ You should see your tools listed with a `READY` status. If any show a different 
 
 ### Deleting a Tool
 
-Remove a tool from the active registry when it's no longer needed:
+Remove a tool from the active registry when it's no longer needed.
 
+**Soft Delete (Default):**
+Marks the tool as inactive and hides it from MCP clients, but keeps it in the database for audit.
 ```bash
 ./bridgectl tool delete [tool_name] [version]
 
@@ -131,9 +133,13 @@ Remove a tool from the active registry when it's no longer needed:
 ./bridgectl tool delete list_items 1.0.0
 ```
 
-> **Note:** Deleted tools aren't permanently removed. They transition to `HIDDEN` status — invisible to MCP clients, but still in the registry for audit purposes.
->
-> To restore a hidden tool, simply re-apply its schema:
+**Hard Delete (Permanent):**
+Completely removes the tool from the SQLite database.
+```bash
+./bridgectl tool delete [tool_name] [version] --hard
+```
+
+> **Note:** To restore a soft-deleted (hidden) tool, simply re-apply its schema:
 > ```bash
 > ./bridgectl tool apply -f schemas/erp/list_items.json
 > ```
@@ -242,6 +248,9 @@ make build
 # Verify tools are READY
 ./bridgectl tool get
 
-# Delete a tool (sets to HIDDEN)
+# Delete a tool (Soft - sets to HIDDEN)
 ./bridgectl tool delete [tool_name] [version]
+
+# Delete a tool (Hard - permanent removal)
+./bridgectl tool delete [tool_name] [version] --hard
 ```
