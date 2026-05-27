@@ -45,7 +45,6 @@ services:
       - RATE_LIMIT_RPS=10
       - RATE_LIMIT_BURST=20
     volumes:
-      - ./schemas:/app/schemas
       - erpbridge-data:/app/data
     depends_on:
       mock-erp:
