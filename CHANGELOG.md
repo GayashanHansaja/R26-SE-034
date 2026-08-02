@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - build(deps): bump go-redis to v9.21.0, prometheus client_golang to v1.24.1, modernc.org/sqlite to v1.55.0, miniredis to v2.38.0, masq to v0.2.2
 - build(deps): bump kin-openapi to v0.145.0
+- build(deps): bump mcp-go to v0.57.0
 
 ## [v0.2.0-alpha.5] - 2026-05-10
 
