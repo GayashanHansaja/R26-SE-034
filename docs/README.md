@@ -1,6 +1,6 @@
 # ERPBridge Documentation
 
-Welcome to the ERPBridge documentation. This wiki-style guide will help you understand, deploy, and extend the middleware.
+Welcome to the ERPBridge documentation. This wiki-style guide helps you understand, deploy, and extend the middleware.
 
 ## 📖 Core Documentation
 
@@ -8,8 +8,10 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 - **[Onboarding New APIs](./onboarding.md)**: Standard workflow for registering APIs and generating MCP tools.
 - **[Tool Schema Reference (V2)](./tool-schema.md)**: Detailed guide to creating versioned, intent-based MCP tool definitions.
 - **[Docker Deployment Guide](./docker.md)**: Detailed instructions for running the full stack using Docker Compose.
-- **[Connectivity & Transport Guide](./connectivity.md)**: Understanding SSE, Streamable HTTP, and Direct API transports.
+- **[Connectivity & Transport Guide](./connectivity.md)**: Understanding Streamable HTTP, Stdio, and Direct API transports.
 - **[AI Agent Integration](../AGENTS.md)**: Specific patterns for connecting Claude, Cursor, and other agents.
+- **[Environment Variables Reference](./environment-variables.md)**: All server and CLI environment variables.
+- **[REST API Reference](./api.md)**: Direct HTTP endpoints of the server.
 
 ## 🛠 Developer Resources
 
@@ -22,11 +24,12 @@ Welcome to the ERPBridge documentation. This wiki-style guide will help you unde
 
 - **[Postman Integration](./connectivity.md#postman-configuration)**: Testing MCP endpoints with Postman.
 - **[Mock ERP Setup](../mock-erp/README.md)**: Details about the simulated legacy ERP service.
-- **[MCP Client Implementation Guide](../docs/mcp-client-guide.md)**: Detailed Guide to Implement MCP Client Use with This MCP Server
+- **[MCP Client Implementation Guide](../docs/mcp-client-guide.md)**: How to implement an MCP client for this server.
+- **[FAQ](./faq.md)**: Common questions about configuration, troubleshooting, and upgrades.
 
 ## 🛡 System Features
 
-- **Resilience**: Circuit breakers and retry logic (see [README](../README.md#3-resilience--reliability)).
+- **Resilience**: Circuit breakers and retry logic (see [Architecture](./architecture.md#security-design)).
 - **[Exact Match Caching](./caching.md)**: High-speed Redis-based storage for ERP responses.
 - **Secure Logging**: Real-time log streaming with automatic PII/Secret redaction and RFC 5424 level control.
 - **Rate Limiting**: Per-session request throttling for infrastructure protection.

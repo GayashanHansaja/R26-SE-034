@@ -1,17 +1,17 @@
 # ERPBridge Onboarding Guide
 
-> Get a new ERP system connected to ERPBridge in under 10 minutes using the `bridgectl` CLI.
+> Connect a new ERP system to ERPBridge in under 10 minutes with the `bridgectl` CLI.
 
 ---
 
 ## Before You Start
 
-Make sure you have the following installed:
+Make sure that you have the following installed:
 
 | Requirement | Purpose |
 |---|---|
 | Docker & Docker Compose | Runs the ERPBridge server and Mock ERP |
-| Go 1.22+ | Needed to build `bridgectl` (if not pre-built) |
+| Go 1.26.2+ | Needed to build `bridgectl` (if not pre-built) |
 
 ---
 
@@ -20,22 +20,22 @@ Make sure you have the following installed:
 Start all required services with Docker Compose:
 
 ```bash
-docker-compose up --build -d
+docker compose up --build -d
 ```
 
-Confirm everything is running:
+Confirm that everything is running:
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
-The ERPBridge server will be available at **`http://localhost:8080`**.
+The ERPBridge server is available at **`http://localhost:8080`**.
 
 ---
 
 ## Step 2 — Build the CLI
 
-If you don't already have `bridgectl` in your project root, build it now:
+If you do not have `bridgectl` in your project root, build it now:
 
 ```bash
 make build
@@ -67,54 +67,56 @@ Tell ERPBridge how to connect to your ERP system:
 |---|---|
 | `--name` | Unique identifier for this API |
 | `--url` | Base URL of your ERP service |
-| `--module` | Logical grouping (e.g., `finance`, `hr`, `erp`) |
-| `--description` | Human-readable description — required by the system |
+| `--module` | Logical grouping (for example `finance`, `hr`, `erp`) |
+| `--description` | Human-readable description. This flag is required. |
 
-> **Tip:** The `--description` flag is mandatory. It helps the LLM layer understand the API's purpose.
+> **Tip:** The `--description` flag is mandatory. It helps the LLM layer understand the purpose of the API.
 
 ---
 
 ## Step 4 — Generate Tool Schemas
 
-Convert your ERP's OpenAPI spec into MCP-compatible JSON tool schemas:
+Convert the OpenAPI spec of your ERP into MCP tool schemas:
 
 ```bash
-./bridgectl tool generate --api erp --openapi mock-erp/openapi.yaml
+./bridgectl tool generate --api erp --openapi mock-erp/openapi.yaml -o yaml > schemas/erp/generated.yaml
 ```
 
-This populates the `schemas/erp/` directory with one JSON file per tool definition.
+The command prints one YAML document per generated tool to stdout. Save each document as a separate file, or keep the output as one manifest file for Step 5.
 
-> **Check the path first** if you're unsure: `ls mock-erp/openapi.yaml`
+> **Check the path first** if you are unsure: `ls mock-erp/openapi.yaml`
+
+> **Note:** The `schemas/` directory is not tracked by git. Generate the schemas on each machine that runs `bridgectl`, or keep the files out of band.
 
 ---
 
 ## Step 5 — Apply Tools to the Registry
 
-Upload your generated schemas to the ERPBridge server.
+Upload your schemas to the ERPBridge server.
 
-**Apply all tools at once:**
-
-```bash
-./bridgectl tool apply -f schemas/erp/
-```
-
-**Or apply a single tool:**
+**Apply a single tool:**
 
 ```bash
 ./bridgectl tool apply -f schemas/erp/list_employees.json
+```
+
+**Apply all tools in a directory (recursive):**
+
+```bash
+./bridgectl tool apply -f schemas/erp/
 ```
 
 ---
 
 ## Step 6 — Verify Everything Is Working
 
-Confirm your tools are registered and in a `READY` state:
+Confirm that your tools are registered:
 
 ```bash
 ./bridgectl tool get
 ```
 
-You should see your tools listed with a `READY` status. If any show a different status, see the Troubleshooting section below.
+You see your tools listed with a `READY` status. If any show another status, see the Troubleshooting section below.
 
 ---
 
@@ -122,10 +124,10 @@ You should see your tools listed with a `READY` status. If any show a different 
 
 ### Deleting a Tool
 
-Remove a tool from the active registry when it's no longer needed.
+Remove a tool from the active registry when you no longer need it.
 
 **Soft Delete (Default):**
-Marks the tool as inactive and hides it from MCP clients, but keeps it in the database for audit.
+Marks the tool as inactive and hides it from MCP clients. The tool stays in the database for audit.
 ```bash
 ./bridgectl tool delete [tool_name] [version]
 
@@ -139,7 +141,9 @@ Completely removes the tool from the SQLite database.
 ./bridgectl tool delete [tool_name] [version] --hard
 ```
 
-> **Note:** To restore a soft-deleted (hidden) tool, simply re-apply its schema:
+> CAUTION: `--hard` deletes the tool from the database. You cannot restore it.
+
+> **Note:** To restore a soft-deleted (hidden) tool, apply its schema again:
 > ```bash
 > ./bridgectl tool apply -f schemas/erp/list_items.json
 > ```
@@ -155,23 +159,23 @@ Completely removes the tool from the SQLite database.
 apply failed: Get "http://localhost:8080/...": dial tcp 127.0.0.1:8080: connect: connection refused
 ```
 
-**Cause:** The ERPBridge server isn't running, or the CLI is pointed at the wrong address.
+**Cause:** The ERPBridge server is not running, or the CLI points to the wrong address.
 
 **Fix:**
-1. Check that Docker services are up:
+1. Check that the Docker services are up:
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
 2. Check your CLI context:
    ```bash
    ./bridgectl context list
    ```
-3. If `local` is missing or wrong, set it:
+3. If the address is wrong, override it with environment variables:
    ```bash
-   ./bridgectl context set local --server http://localhost:8080
+   export BRIDGE_SERVER=http://localhost:8080
+   export BRIDGE_MCP_SERVER=http://localhost:8080
    ```
-
----
+   Or edit `~/.bridgectl/config.yaml` and change the `server` value of the active context.
 
 ### Registration fails with a missing flag error
 
@@ -191,8 +195,6 @@ required flag(s) "description" not set
   --description "Internal Mock ERP for testing"
 ```
 
----
-
 ### OpenAPI spec not found
 
 **Error:**
@@ -200,29 +202,32 @@ required flag(s) "description" not set
 failed to load OpenAPI spec: open ...: no such file or directory
 ```
 
-**Cause:** The path passed to `--openapi` doesn't match the actual file location.
+**Cause:** The path passed to `--openapi` does not match the actual file location.
 
-**Fix:** Verify the file exists from your current directory:
+**Fix:** Verify that the file exists from your current directory:
 ```bash
 ls mock-erp/openapi.yaml
 ```
 
 Then re-run the generate command with the correct path.
 
----
-
 ### Tools are applied but calls return `internal server error`
 
-**Cause:** The ERPBridge server likely can't reach Redis.
+**Cause:** The ERPBridge server cannot reach the ERP service, or the tool cannot reach Redis.
 
-**Fix:** Check the server logs for Redis-related errors:
+**Fix:** Check the server logs for errors:
 ```bash
-docker-compose logs erpbridge-server
+docker compose logs erpbridge-server
 ```
 
-Ensure the `redis` container is healthy in `docker-compose ps`. Restart if needed:
+Make sure that the `mock-erp` and `redis` containers are healthy:
 ```bash
-docker-compose restart redis
+docker compose ps
+```
+
+If a container is not healthy, restart it:
+```bash
+docker compose restart redis
 ```
 
 ---
@@ -231,7 +236,7 @@ docker-compose restart redis
 
 ```bash
 # Start services
-docker-compose up --build -d
+docker compose up --build -d
 
 # Build CLI
 make build
@@ -240,7 +245,7 @@ make build
 ./bridgectl api register --name erp --url http://localhost:8081 --module erp --description "..."
 
 # Generate schemas from OpenAPI spec
-./bridgectl tool generate --api erp --openapi mock-erp/openapi.yaml
+./bridgectl tool generate --api erp --openapi mock-erp/openapi.yaml -o yaml > schemas/erp/generated.yaml
 
 # Apply all tools
 ./bridgectl tool apply -f schemas/erp/

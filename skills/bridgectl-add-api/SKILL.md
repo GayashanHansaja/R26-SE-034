@@ -2,7 +2,7 @@
 name: bridgectl-add-api
 description: Autonomously register a new ERP API endpoint and expose it as a callable MCP tool via bridgectl. Use for onboarding new APIs, generating tool schemas, and verifying ERP connectivity.
 license: MIT
-compatibility: "Requires bridgectl CLI, Go 1.22+, and network access to the target ERP and ERPBridge Management Server."
+compatibility: "Requires bridgectl CLI, Go 1.26.2+, and network access to the target ERP and ERPBridge Management Server."
 metadata:
   version: "2.0.0"
   author: "ERPBridge Team"
@@ -18,8 +18,8 @@ This skill guides an AI agent through the deterministic workflow of registering 
 
 | URL Role | Config Key | Purpose |
 |---|---|---|
-| Management Server | `server` | Control plane for `tool apply`, `list`, `log`. |
-| MCP Runtime | `mcp-server` | Entry point for AI agents via `tool invoke`. |
+| Management Server | `server` | Control plane for `tool apply`, `tool get`, `log`. |
+| MCP Runtime | `mcp-server` | Entry point for AI agents via MCP. |
 | ERP System | `erp-base` | The legacy system being wrapped. |
 
 For troubleshooting common setup or runtime errors, see [Troubleshooting Guide](references/TROUBLESHOOTING.md).
@@ -63,7 +63,7 @@ bridgectl tool generate --api <NAME> -o yaml > <NAME>.yaml
 **Required Enhancement:** Use the [MCP Tool Template](assets/mcp-tool.yaml) as a reference. You MUST fill in:
 - `spec.description.short`: One concise sentence.
 - `spec.description.whenToUse`: Natural language trigger conditions.
-- `spec.description.examples`: 2-3 user phrases that should trigger this tool.
+- `spec.description.examples`: 2-3 user phrases that trigger this tool.
 
 ### Step 5: Apply & Verify
 ```bash
@@ -71,7 +71,7 @@ bridgectl tool apply -f <NAME>.yaml
 ```
 Verify the tool is live:
 ```bash
-bridgectl tool list && bridgectl tool describe <NAME>
+bridgectl tool get && bridgectl tool describe <NAME>
 ```
 
 ---

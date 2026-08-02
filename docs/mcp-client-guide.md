@@ -79,7 +79,7 @@ curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/mcp/ \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}'
 ```
 
-You should see `200`.
+You see `200`.
 
 ### 2.3 Install Language Dependencies
 
@@ -538,7 +538,7 @@ ERPBridge supports **Hot Reloading** and dynamic tool lifecycle management. If y
 ### 12.1 Standard Sync Notification
 When tools are added or removed, the server sends a standard notification:
 *   **Method**: `notifications/tools/list_changed`
-*   **Action**: Your client should re-call `tools/list` to get the updated set.
+*   **Action**: Re-call `tools/list` to get the updated set.
 
 ### 12.2 ERPBridge Custom Notifications
 For more granular control, ERPBridge sends specific lifecycle events:

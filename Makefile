@@ -23,7 +23,7 @@ clean:
 	@rm -f $(BINARY_SERVER) $(BINARY_CLI)
 	@rm -rf $(BUILD_DIR)
 	@rm -f $(DB_PATH)
-	@rm -rf schemas/erp schemas/test schemas/hr schemas/inventory schemas/finance
+	@rm -rf schemas/erp schemas/mock-erp
 
 # Run tests
 test:
@@ -56,8 +56,9 @@ generate-tools: build
 	@echo "Generating and applying tools from Mock ERP OpenAPI..."
 	@# Ensure server is running or use a temporary one? 
 	@# Usually this assumes the server is reachable at its default port.
-	@./$(BINARY_CLI) api register --name erp --url http://localhost:$(MOCK_ERP_PORT) --module erp
-	@./$(BINARY_CLI) tool generate --api erp --openapi $(MOCK_ERP_DIR)/openapi.yaml
+	@./$(BINARY_CLI) api register --name erp --url http://localhost:$(MOCK_ERP_PORT) --module erp --description "Mock ERP"
+	@mkdir -p schemas/erp
+	@./$(BINARY_CLI) tool generate --api erp --openapi $(MOCK_ERP_DIR)/openapi.yaml -o yaml > schemas/erp/generated.yaml
 	@./$(BINARY_CLI) tool apply -f schemas/erp/
 	@echo "Tools applied successfully."
 

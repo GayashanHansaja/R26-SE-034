@@ -1,76 +1,86 @@
 # Exact Match Caching
 
-ERPBridge implements a high-performance caching layer designed to minimize latency and reduce load on legacy ERP systems. By serving repetitive queries directly from Redis, ERPBridge can deliver complex ERP data in milliseconds.
+ERPBridge has a caching layer that reduces latency and load on legacy ERP systems. It serves repetitive queries directly from Redis.
 
 ## 🚀 Overview
 
-The caching mechanism operates as a middleware layer in the MCP tool execution pipeline. It uses **Redis** as the high-speed backend for key-value storage.
+The caching mechanism runs as middleware in the MCP tool execution pipeline. It uses **Redis** as the backend.
 
 ### Layer 1: Exact Match (SHA256)
-The system provides O(1) lookups for identical requests.
-- **Key Generation**: A deterministic hash of `tool_name` + `user_role` + `json_sorted_arguments`.
-- **TTL**: Configurable per tool (default: 3600s).
-- **Benefit**: Extremely fast response times (<1ms) for repetitive queries.
 
----
+The system gives O(1) lookups for identical requests.
+
+- **Key Generation**: A deterministic hash of the tool name, the user role scope, and the JSON-sorted arguments.
+- **TTL**: Configurable per tool (default: 3600s).
+- **Benefit**: Fast response times for repetitive queries.
 
 ## ⚙️ Configuration
 
-Caching is opt-in and configured per-tool in the JSON schema files located in `schemas/`.
+Caching is opt-in. It is configured per tool in the `spec.cache` section of the tool schema.
 
 ### Example Schema Configuration
 
 ```json
 {
-  "name": "erp.GET-resource-Item",
-  "cache": {
-    "enabled": true,
-    "ttlSeconds": 3600,
-    "isReadOnly": true,
-    "flushOn": []
+  "apiVersion": "erpbridge.io/v1",
+  "kind": "MCPTool",
+  "metadata": {
+    "name": "list_employees",
+    "version": "1.0.0",
+    "module": "hr"
+  },
+  "spec": {
+    "cache": {
+      "enabled": true,
+      "ttlSeconds": 3600,
+      "isReadOnly": true,
+      "flushOn": []
+    }
   }
 }
 ```
 
 | Field | Description |
 | :--- | :--- |
-| `enabled` | Enables/disables the cache middleware for this tool. |
-| `ttlSeconds` | How long the entry remains in Redis. |
-| `isReadOnly` | If `true`, the cache is shared globally (`role: shared`). If `false`, entries are isolated by the user's MCP role. |
-| `flushOn` | An array of tool names. When the current tool is executed, it automatically flushes the cache for the listed tools. |
-
----
+| `enabled` | Enables or disables the cache middleware for this tool. |
+| `ttlSeconds` | How long the entry stays in Redis. |
+| `isReadOnly` | If `true`, the cache is shared globally (`role: shared`). If `false`, entries are isolated by the MCP role of the user. |
+| `flushOn` | An array of tool names. When the current tool runs, it flushes the cache of the listed tools. |
 
 ## 🧹 Cache Invalidation (Auto-Flush)
 
-To prevent stale data, ERPBridge supports automatic cache invalidation. This is typically used on `POST`, `PUT`, or `PATCH` tools.
+ERPBridge supports automatic cache invalidation. Use it on `POST`, `PUT`, or `PATCH` tools.
 
 **Example: Invalidating "Get Invoices" when a new one is created.**
-In `erp.POST-resource-Purchase Invoice.json`:
+
 ```json
-"cache": {
-  "enabled": false,
-  "flushOn": ["erp.GET-resource-Purchase Invoice"]
+"spec": {
+  "cache": {
+    "enabled": false,
+    "flushOn": ["get_invoices"]
+  }
 }
 ```
-
----
 
 ## 🛠 Management with `bridgectl`
 
 The developer CLI provides tools to monitor and manage the cache.
 
 ### Check Cache Statistics
-Provides counts of cached keys and memory usage.
+
+Shows counts of cached keys and memory usage.
+
 ```bash
 bridgectl cache stats
 ```
 
 ### Flush Cache
-Manually clear the cache for a specific tool or an entire module.
+
+Clears the cache for a specific tool or an entire module.
+
 ```bash
 # Flush specific tool
-bridgectl cache flush --tool erp.GET-resource-Item
+bridgectl cache flush --tool list_employees
 
 # Flush entire module
 bridgectl cache flush --module erp
@@ -79,7 +89,12 @@ bridgectl cache flush --module erp
 bridgectl cache flush --all
 ```
 
----
+## 🔎 When Redis Is Not Configured
+
+If `REDIS_URL` is not set, the server disables the cache. Tool calls still work. The cache endpoints return HTTP 503:
+
+- `GET /api/cache/stats`
+- `GET /api/cache/flush`
 
 ## 🏗 System Architecture
 

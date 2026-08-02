@@ -38,8 +38,8 @@ Identity and grouping information.
 High-signal information to help the LLM select the correct tool.
 - **`short`**: (String) Concise summary of what the tool does.
 - **`whenToUse`**: (Array) List of scenarios where this tool is appropriate.
-- **`whenNotToUse`**: (Array) List of similar scenarios where this tool should be avoided.
-- **`examples`**: (Array) Sample user queries that should trigger this tool.
+- **`whenNotToUse`**: (Array) List of similar scenarios where you must not use this tool.
+- **`examples`**: (Array) Sample user queries that trigger this tool.
 
 ### `spec.inputSchema`
 Standard JSON Schema defining the arguments. **Strict typing is mandatory.**

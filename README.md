@@ -6,19 +6,19 @@
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--03--26-blue)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**ERPBridge** is a high-performance middleware that bridges legacy Enterprise Resource Planning (ERP) systems with Agentic AI. By leveraging the **Model Context Protocol (MCP)**, it transforms complex ERP APIs into discoverable, type-safe tools that AI agents (such as Claude, Cursor, or custom LLM chains) can interact with seamlessly.
+**ERPBridge** is a middleware that connects legacy Enterprise Resource Planning (ERP) systems to Agentic AI. It uses the **Model Context Protocol (MCP)** to turn complex ERP APIs into discoverable, type-safe tools. AI agents such as Claude, Cursor, or custom LLM chains can use these tools.
 
 ## 🚀 Key Features
 
-- **Model Context Protocol (MCP) Native**: Built from the ground up to support the latest MCP specifications.
-- **High-Performance Caching**: Optimized exact-match caching layer using Redis and canonical SHA-256 hashing to minimize redundant ERP API hits.
-- **Rate Limiting**: Built-in per-session rate limiting using the token bucket algorithm to protect legacy ERP infrastructure.
-- **Resilience & Fault Tolerance**: Hardened with circuit breakers (Sony/GoBreaker) and intelligent retry logic (Avast/Retry-Go) to handle the instability of legacy systems.
-- **Secure Log Streaming**: Real-time structured log streaming to MCP clients with automatic redaction of sensitive data (API keys, passwords, PII) using `masq` and RFC 5424 level control.
-- **Multi-Transport Support**: 
-    - **Streamable HTTP**: Ideal for remote agents and web-based integrations.
+- **Model Context Protocol (MCP) Native**: Supports the latest MCP specifications.
+- **High-Performance Caching**: Exact-match caching layer using Redis and canonical SHA-256 hashing. It reduces redundant ERP API calls.
+- **Rate Limiting**: Built-in per-session rate limiting using the token bucket algorithm. It protects legacy ERP infrastructure.
+- **Resilience & Fault Tolerance**: Circuit breakers (Sony/GoBreaker) and retry logic (Avast/Retry-Go) handle the instability of legacy systems.
+- **Secure Log Streaming**: Real-time structured log streaming to MCP clients. Sensitive data (API keys, passwords, PII) is redacted with `masq` and RFC 5424 level control.
+- **Multi-Transport Support**:
+    - **Streamable HTTP**: For remote agents and web-based integrations.
     - **Stdio**: Native integration for local IDEs and CLI-based agents.
-- **Developer-Centric CLI (`bridgectl`)**: A powerful tool for environment management, schema validation, tool invocation, and real-time monitoring.
+- **Developer-Centric CLI (`bridgectl`)**: A tool for environment management, schema validation, tool invocation, and real-time monitoring.
 - **Metrics & Monitoring**: Native Prometheus integration for tracking performance and health.
 
 ## 🏗️ Project Architecture
@@ -34,10 +34,10 @@ graph TD
     G -->|Reconciliation| B
 ```
 
-- **`services/erpbridge-server/`**: The core Go service acting as the MCP gateway and Declarative Control Plane.
-- **`mock-erp/`**: A Python FastAPI service simulating legacy ERP modules (Finance, HR, Inventory) for development and testing.
+- **`services/erpbridge-server/`**: The core Go service. It acts as the MCP gateway and Declarative Control Plane.
+- **`mock-erp/`**: A Python FastAPI service. It simulates legacy ERP modules (Finance, HR, Inventory) for development and testing.
 - **`tools/bridgectl/`**: Management CLI for developers and AI agents (Kubernetes-style tool management).
-- **`internal/`**: Optimized Go libraries for configuration, protocol handling, caching, and resilience.
+- **`internal/`**: Go libraries for configuration, protocol handling, caching, and resilience.
 
 ## 🛠️ Getting Started
 
@@ -46,26 +46,33 @@ graph TD
 - **Go**: 1.26.2+
 - **Python**: 3.11+ (managed via `uv` is recommended)
 - **Docker & Docker Compose**: For containerized deployment.
-- **Redis**: Required for the caching layer.
+- **Redis**: Optional for the caching layer. The server runs without it. The cache is disabled in that case.
 - **SQLite**: (Built-in) used for the Tool Registry.
 
 ### Quick Start (Docker)
 
-The fastest way to spin up the entire stack is using Docker Compose:
+The fastest way to run the full stack is Docker Compose:
 
 ```bash
 docker compose up -d --build
 ```
 
-This will launch:
+This launches:
 - **ERPBridge Server**: `http://localhost:8080`
 - **Mock ERP**: `http://localhost:8081`
 - **Redis**: Port `6379`
 
-Once running, apply the default schemas:
+Then build the CLI and load the default schemas:
+
 ```bash
-bridgectl tool apply -f schemas/erp/
+make build
+./bridgectl api register --name erp --url http://localhost:8081 --module erp --description "Mock ERP"
+mkdir -p schemas/erp
+./bridgectl tool generate --api erp --openapi mock-erp/openapi.yaml -o yaml > schemas/erp/generated.yaml
+./bridgectl tool apply -f schemas/erp/
 ```
+
+> **Note:** `schemas/` is not tracked by git. Each machine that runs `bridgectl` must generate the schemas first. See the [Onboarding Guide](./docs/onboarding.md) for the full workflow.
 
 ### Local Development
 
@@ -77,7 +84,7 @@ bridgectl tool apply -f schemas/erp/
 
 2. **Run ERPBridge Server**:
    ```bash
-   # Server will create data/erpbridge.db automatically
+   # Server creates data/erpbridge.db automatically
    go run services/erpbridge-server/main.go
    ```
 
@@ -88,22 +95,23 @@ bridgectl tool apply -f schemas/erp/
 
 4. **Initialize Tools**:
    ```bash
+   bridgectl api register --name erp --url http://localhost:8081 --module erp --description "Mock ERP"
+   bridgectl tool generate --api erp --openapi mock-erp/openapi.yaml -o yaml > schemas/erp/generated.yaml
    bridgectl tool apply -f schemas/erp/
    ```
-
 
 ## 🔌 AI Integration
 
 ### Local Agents (Claude/Cursor)
-Configure your agent to use the Stdio transport via `bridgectl`:
+Configure your agent to use the Stdio transport via the server binary:
 ```bash
-bridgectl serve --stdio
+erpbridge-server --stdio
 ```
 
 ### Remote / Web Clients
 Connect via Streamable HTTP:
 - **Base URL**: `http://localhost:8080/mcp/`
-- **Transport**: MCP 2025-03-26
+- **Transport**: MCP 2025-03-26 (the server negotiates up to `2025-11-25`)
 
 For detailed setup instructions, including Postman collections, see the [Connectivity & Transport Guide](./docs/connectivity.md).
 
@@ -114,22 +122,25 @@ For detailed setup instructions, including Postman collections, see the [Connect
 - [**AI Agent Guide**](./AGENTS.md) - Best practices for agentic integration.
 - [**AI Skills**](./skills/bridgectl-add-api/SKILL.md) - Specialized skills for AI agents to automate ERPBridge tasks.
 - [**Docker Deployment**](./docs/docker.md) - Production-ready deployment strategies.
+- [**Environment Variables**](./docs/environment-variables.md) - Reference for all server and CLI variables.
+- [**REST API Reference**](./docs/api.md) - Direct HTTP endpoints of the server.
 
 ## 🛠️ Development & Contributing
 
 ### Testing
 Run the full test suite:
 ```bash
-go test ./...
+make test
 ```
 
 ### Quality Control
-We enforce high standards using `golangci-lint` and `lefthook` for pre-commit checks.
+We enforce quality with `golangci-lint` and `lefthook` for pre-commit checks.
 ```bash
 # Install hooks
 lefthook install
 
 # Run linting manually
-golangci-lint run
+make lint
 ```
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to report bugs and contribute.

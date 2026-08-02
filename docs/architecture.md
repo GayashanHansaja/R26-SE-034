@@ -8,7 +8,7 @@ The system is divided into three distinct layers:
 
 1.  **Management Layer (The CLI)**: Developers use `bridgectl` to declare the desired state of the system by "applying" YAML/JSON resource definitions.
 2.  **Control Plane (The Server)**: A centralized API server stores tool definitions in a persistent SQLite database, validates them against strict admission rules, and manages versioning.
-3.  **Runtime Layer (MCP Engine)**: A background reconciliation controller ensures that the active MCP server always reflects the desired state stored in the database.
+3.  **Runtime Layer (MCP Engine)**: A background reconciliation controller keeps the active MCP server aligned with the desired state in the database.
 
 ---
 
@@ -37,7 +37,7 @@ One of the most important concepts in ERPBridge V2 is the distinction between re
 ### 1. Tool Resource Registry (The Source of Truth)
 Instead of loading files from a directory, the server maintains an internal **Tool Registry** backed by **SQLite**. This registry stores multiple versions of the same tool, allowing for safe rollouts and rollbacks.
 
-Each tool includes an `IsActive` flag. When a tool is "deleted" via the CLI, it is not immediately purged from the database; instead, it is marked as `IsActive = false`. This "soft-delete" pattern allows the system to manage visibility without breaking existing MCP sessions.
+Each tool includes an `IsActive` flag. When a tool is "deleted" via the CLI, it is not immediately purged from the database. Instead, it is marked as `IsActive = false`. This "soft-delete" pattern allows the system to manage visibility without breaking existing MCP sessions.
 
 ### 2. Version Resolver
 When an AI agent requests a tool (e.g., `list_employees`), the **Version Resolver** automatically selects the **latest stable version** (e.g., `list_employees@1.2.0`). It explicitly ignores any tools marked as inactive.
@@ -47,11 +47,23 @@ Because the underlying MCP runtime does not always support dynamic removal of to
 
 - **The Problem**: Once a tool is registered in memory, standard libraries often provide no way to "unregister" it without a restart.
 - **The Solution**: ERPBridge wraps the MCP server's HTTP handler and intercepts the `tools/list` response. Before the JSON-RPC result reaches the client, ERPBridge parses the list and removes any tools marked as `IsActive = false` in the internal registry.
-- **Result**: The client receives a "truthful" list of tools that perfectly matches the desired state of the control plane, even if the underlying runtime still technically knows about the "ghost" tools.
+- **Result**: The client receives a truthful list of tools. The list matches the desired state of the control plane. This works even when the underlying runtime still knows the "ghost" tools.
 
 ### 4. Reconciliation Controller
-... (rest of components)
-... (existing content)
+
+The server runs a background reconciliation controller. It keeps the in-memory MCP registry in sync with the SQLite database.
+
+The controller runs every 10 seconds. It compares the database state against the desired state:
+
+- If a tool exists in SQLite but not in the registry, the controller registers it.
+- If a tool is inactive (soft-deleted) or missing from SQLite, the controller deregisters it from the MCP runtime.
+- If a tool changes, the controller re-registers the new version.
+
+Each check uses a state hash (`count-activeSum-max(updated_at)`) from the store. If the hash is unchanged, the controller skips the pass. This keeps the check cheap.
+
+When the registry changes, the controller sends the `notifications/tools/list_changed` notification to all active MCP sessions.
+
+The controller also runs immediately after a `tool apply` HTTP request. The tool is visible to agents right after apply. It does not wait for the next 10-second tick.
 
 ---
 
@@ -68,7 +80,6 @@ This decoupling allows you to use the same OpenAPI spec to generate tools for di
 ---
 
 ## 🔄 Lifecycle of a Tool Change
-... (rest of the file)
 
 1.  **Define**: Developer creates a V2 YAML schema for a new tool.
 2.  **Validate**: Runs `bridgectl tool validate -f tool.yaml` to check for syntax and admission rules (e.g., no raw secrets).
