@@ -39,6 +39,8 @@ dist/
 
 /data
 
+/cache/
+
 # Agents
 graphify-out/
 .antigravitycli/
