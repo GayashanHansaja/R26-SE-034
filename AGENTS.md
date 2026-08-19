@@ -80,6 +80,7 @@ Rules for agents making changes to this repository.
 ### Quality gates
 
 - Run `make test` and `make lint` before finishing any task — `make build` for anything that compiles binaries. The lefthook pre-commit hooks enforce the same gates.
+- Only run linting on services/directories that have changes in the working directory. Do not run all linting tasks at once.
 - Behavior changes update the relevant `docs/` guide and CHANGELOG.md (Unreleased) in the same commit.
 
 ### Secrets
