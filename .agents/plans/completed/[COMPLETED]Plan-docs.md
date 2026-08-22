@@ -1,4 +1,4 @@
-# Plan: erpbridge-docs — Docusaurus site + GitHub Pages
+# [COMPLETED] Plan: erpbridge-docs — Docusaurus site + GitHub Pages
 
 Status: approved 2026-08-19. Decisions: Docusaurus (3.x, TypeScript), project page, public repo, manual content sync. **Completed 2026-08-19.**
 
